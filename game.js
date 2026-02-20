@@ -122,7 +122,34 @@ function startTimer() {
 
 function handleClick(row, col) {
     const key = `${row},${col}`;
-    if (gameOver || revealed[key] || flagged[key]) return;
+    if (gameOver) return;
+
+    // 如果点击的是已揭示的数字格子，检查是否可以快速开雷
+    if (revealed[key] && board[key] > 0) {
+        const neighbors = getNeighbors(sides, row, col);
+        const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
+        // 周围已标记的雷数等于数字时，自动点开周围格子
+        if (flaggedCount === board[key]) {
+            startTimer();
+            neighbors.forEach(([r, c]) => {
+                const nKey = `${r},${c}`;
+                if (!revealed[nKey] && !flagged[nKey]) {
+                    if (board[nKey] === -1) {
+                        mineLocations.forEach(([mr, mc]) => setCellState(mr, mc, 'mine'));
+                        gameOver = true;
+                        clearInterval(timerInterval);
+                        _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+                    } else {
+                        revealCell(r, c);
+                    }
+                }
+            });
+            checkWin();
+            return;
+        }
+    }
+
+    if (revealed[key] || flagged[key]) return;
     startTimer();
 
     if (board[key] === -1) {
