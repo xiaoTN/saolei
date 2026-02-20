@@ -254,42 +254,50 @@
         let rows = 8;
         let cols = 8;
         let sides = 4;
-        let cellSize = 40;
-        let cellSpacing = 8;
+        let cellSize = 44;
+        let cellSpacing = 0;
 
         function getClipPath(sides) {
             if (sides === 3) {
-                return 'polygon(50% 0%, 100% 100%, 0% 100%)';
+                return 'polygon(50% 0%, 100% 86.6%, 50% 100%, 0% 86.6%)';
             } else if (sides === 4) {
-                return 'polygon(10% 0%, 90% 0%, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0% 90%, 0% 10%)';
+                return 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
             } else if (sides === 5) {
-                return 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)';
+                // 更圆润的五边形
+                return 'polygon(50% 0%, 95% 31%, 81% 95%, 19% 95%, 5% 31%)';
             } else if (sides === 6) {
                 return 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
             } else if (sides === 8) {
+                // 更圆润的八边形
                 return 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
             }
-            return 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)';
+            return 'polygon(50% 0%, 95% 31%, 81% 95%, 19% 95%, 5% 31%)';
         }
 
         function getNeighbors(row, col) {
             const neighbors = [];
-            const key = (r, c) => `${r},${c}`;
 
             if (sides === 3) {
-                // 三角形布局 - 奇偶行错位
+                // 三角形布局 - 紧密贴合
+                // 奇偶列方向交替
                 if (col % 2 === 0) {
-                    // 偶数列：上左右
-                    if (row > 0) neighbors.push([row - 1, col]);
-                    neighbors.push([row, col - 1]);
-                    neighbors.push([row, col + 1]);
-                    neighbors.push([row + 1, col]);
+                    // 偶数列：尖朝上，底在下 -> 相邻：左、右、下、左下、右下
+                    neighbors.push([row, col - 1]); // 左
+                    neighbors.push([row, col + 1]); // 右
+                    if (row < rows - 1) {
+                        neighbors.push([row + 1, col]); // 下
+                        neighbors.push([row + 1, col - 1]); // 左下
+                        if (col < cols - 1) neighbors.push([row + 1, col + 1]); // 右下
+                    }
                 } else {
-                    // 奇数列：下左右
-                    neighbors.push([row - 1, col]);
-                    neighbors.push([row, col - 1]);
-                    neighbors.push([row, col + 1]);
-                    if (row < rows - 1) neighbors.push([row + 1, col]);
+                    // 奇数列：尖朝下，底在上 -> 相邻：左、右、上、左上、右上
+                    neighbors.push([row, col - 1]); // 左
+                    neighbors.push([row, col + 1]); // 右
+                    if (row > 0) {
+                        neighbors.push([row - 1, col]); // 上
+                        neighbors.push([row - 1, col - 1]); // 左上
+                        if (col < cols - 1) neighbors.push([row - 1, col + 1]); // 右上
+                    }
                 }
             } else if (sides === 4) {
                 // 正方形：8邻域
@@ -343,17 +351,43 @@
         }
 
         function getCellPosition(row, col) {
-            const width = cellSize + cellSpacing;
-            const height = (cellSize + cellSpacing) * (sides === 3 ? 0.75 : sides === 6 ? 0.866 : 0.9);
+            const cellHeight = cellSize * (sides === 3 ? 0.866 : sides === 6 ? 0.866 : sides === 5 ? 0.85 : sides === 8 ? 0.8 : 0.8);
+            let x, y;
 
-            let x = col * width + cellSize / 2;
-            let y = row * height + cellSize / 2;
-
-            if (sides === 3 && col % 2 === 1) {
-                y += height * 0.5;
-            }
-            if (sides === 6 && col % 2 === 1) {
-                y += height * 0.5;
+            if (sides === 3) {
+                // 三角形 - 紧密贴合
+                // 等边三角形：高度 = 边长 * sqrt(3)/2 ≈ 边长 * 0.866
+                const triHeight = cellSize * 0.866;
+                x = col * (cellSize * 0.5) + cellSize / 2;
+                y = row * (triHeight * 0.5) + cellSize / 2;
+                // 奇偶列交替
+                if (col % 2 === 1) {
+                    y += triHeight * 0.25;
+                }
+            } else if (sides === 6) {
+                // 六边形 - 蜂窝状紧密贴合
+                const hexHeight = cellSize * 0.866;
+                const hexWidth = cellSize;
+                x = col * (hexWidth * 0.75) + cellSize / 2;
+                y = row * (hexHeight * 0.75) + cellSize / 2;
+                if (col % 2 === 1) {
+                    y += hexHeight * 0.5;
+                }
+            } else if (sides === 5) {
+                // 五边形 - 近似圆形紧密排列
+                x = col * (cellSize * 0.85) + cellSize / 2;
+                y = row * (cellSize * 0.85) + cellSize / 2;
+                if (col % 2 === 1) {
+                    y += cellSize * 0.35;
+                }
+            } else if (sides === 8) {
+                // 八边形 - 近似圆形紧密排列
+                x = col * (cellSize * 0.85) + cellSize / 2;
+                y = row * (cellSize * 0.85) + cellSize / 2;
+            } else {
+                // 四边形 - 紧密方格
+                x = col * cellSize + cellSize / 2;
+                y = row * cellSize + cellSize / 2;
             }
 
             return { x, y };
@@ -361,8 +395,9 @@
 
         function updateCellSize() {
             sides = parseInt(document.getElementById('sides').value);
-            const sizeMap = { 3: 44, 4: 38, 5: 40, 6: 38, 8: 36 };
-            cellSize = sizeMap[sides] || 40;
+            const sizeMap = { 3: 48, 4: 42, 5: 44, 6: 44, 8: 40 };
+            cellSize = sizeMap[sides] || 44;
+            cellSpacing = 0;
         }
 
         function initGame() {
@@ -403,9 +438,26 @@
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
 
-            // 计算画布大小
-            const width = cols * (cellSize + cellSpacing) + cellSize;
-            const height = rows * (cellSize + cellSpacing) * (sides === 3 || sides === 6 ? 0.9 : 0.85) + cellSize * 2;
+            // 计算画布大小 - 根据不同边数紧密排列
+            let width, height;
+            if (sides === 3) {
+                const triHeight = cellSize * 0.866;
+                width = cols * (cellSize * 0.5) + cellSize * 1.5;
+                height = rows * (triHeight * 0.5) + triHeight * 1.5;
+            } else if (sides === 6) {
+                const hexHeight = cellSize * 0.866;
+                width = cols * (cellSize * 0.75) + cellSize * 1.5;
+                height = rows * (hexHeight * 0.75) + hexHeight * 1.5;
+            } else if (sides === 5) {
+                width = cols * (cellSize * 0.85) + cellSize * 1.5;
+                height = rows * (cellSize * 0.85) + cellSize * 1.5;
+            } else if (sides === 8) {
+                width = cols * (cellSize * 0.85) + cellSize * 1.5;
+                height = rows * (cellSize * 0.85) + cellSize * 1.5;
+            } else {
+                width = cols * cellSize + cellSize;
+                height = rows * cellSize + cellSize;
+            }
             boardEl.style.width = width + 'px';
             boardEl.style.height = height + 'px';
 
