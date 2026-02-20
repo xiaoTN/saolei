@@ -246,15 +246,51 @@
         let sides = 4;
         let cellSize = 44;
 
-        // 根据边数获取clip-path
+        // 三角形平铺参数
+        // 每行有 cols 个三角形，每个三角形共享宽=triW、高=triH 的矩形边界框
+        // triW = cellSize, triH = cellSize * sqrt(3)/2
+        // (row, col) 的类型：(row+col)%2==0 → 尖朝上(UP), ==1 → 尖朝下(DOWN)
+        // 用 SVG 精确绘制三角形，不用 clip-path
+        function getTriType(row, col) {
+            return (row + col) % 2 === 0 ? 'up' : 'down';
+        }
+
+        // 获取三角形的三个顶点（绝对坐标，像素）
+        function getTriVertices(row, col) {
+            const triH = cellSize * Math.sqrt(3) / 2;
+            const triW = cellSize;
+            const type = getTriType(row, col);
+            // 左上角 x0,y0
+            const x0 = col * triW / 2;
+            const y0 = row * triH;
+            if (type === 'up') {
+                // 尖朝上：顶点在上中，底边在下
+                return [
+                    [x0 + triW / 2, y0],       // 顶点（上中）
+                    [x0 + triW,     y0 + triH], // 右下角
+                    [x0,            y0 + triH], // 左下角
+                ];
+            } else {
+                // 尖朝下：顶边在上，顶点在下中
+                return [
+                    [x0,            y0],         // 左上角
+                    [x0 + triW,     y0],         // 右上角
+                    [x0 + triW / 2, y0 + triH], // 顶点（下中）
+                ];
+            }
+        }
+
+        // 获取三角形中心点（用于放文字）
+        function getTriCenter(row, col) {
+            const verts = getTriVertices(row, col);
+            const x = (verts[0][0] + verts[1][0] + verts[2][0]) / 3;
+            const y = (verts[0][1] + verts[1][1] + verts[2][1]) / 3;
+            return { x, y };
+        }
+
+        // 根据边数获取clip-path（非三角形使用）
         function getClipPath(sides, inverted = false) {
-            if (sides === 3) {
-                // 三角形 - inverted=true 表示旋转180度
-                if (inverted) {
-                    return 'polygon(50% 100%, 0% 13.4%, 100% 13.4%)';
-                }
-                return 'polygon(50% 0%, 0% 86.6%, 100% 86.6%)';
-            } else if (sides === 4) {
+            if (sides === 4) {
                 return 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
             } else if (sides === 5) {
                 if (inverted) {
@@ -275,19 +311,13 @@
             return 'polygon(50% 0%, 95% 31%, 81% 95%, 19% 95%, 5% 31%)';
         }
 
-        // 判断格子是否需要翻转（交替）
+        // 判断格子是否需要翻转（非三角形使用）
         function shouldInvert(row, col) {
-            if (sides === 3) {
-                // 三角形：棋盘格交错排列，相邻格子翻转
-                return (row + col) % 2 === 1;
-            } else if (sides === 5) {
-                // 五边形：交错排列
+            if (sides === 5) {
                 return (row + col) % 2 === 1;
             } else if (sides === 6) {
-                // 六边形：蜂窝状，奇偶列不同
                 return col % 2 === 1;
             } else if (sides === 8) {
-                // 八边形：交错排列
                 return (row + col) % 2 === 1;
             }
             return false;
@@ -296,25 +326,22 @@
         // 获取相邻格子
         function getNeighbors(row, col) {
             const neighbors = [];
-            const invert = shouldInvert(row, col);
 
             if (sides === 3) {
-                // 三角形 - 紧密贴合布局
-                // 翻转的三角形与未翻转的三角形边对边重叠
-                if (invert) {
-                    // 翻转的三角形（尖朝下）: 上、左上、右上
-                    neighbors.push([row - 1, col]); // 上
-                    neighbors.push([row - 1, col + 1]); // 右上
-                    if (col > 0) neighbors.push([row - 1, col - 1]); // 左上
-                } else {
-                    // 正常的三角形（尖朝上）: 下、左下、右下
-                    neighbors.push([row + 1, col]); // 下
-                    neighbors.push([row + 1, col + 1]); // 右下
-                    if (col > 0) neighbors.push([row + 1, col - 1]); // 左下
-                }
-                // 左右相邻
+                // 三角形每格恰好 3 个邻居（共享一条边）
+                // 经数学验证：
+                // up(r,c)：邻居是 (r,c-1)down、(r,c+1)down、(r+1,c)down
+                // down(r,c)：邻居是 (r,c-1)up、(r,c+1)up、(r-1,c)up
                 if (col > 0) neighbors.push([row, col - 1]);
                 if (col < cols - 1) neighbors.push([row, col + 1]);
+                const type = getTriType(row, col);
+                if (type === 'up') {
+                    // 尖朝上：水平底边朝下，第三邻在下一行
+                    if (row < rows - 1) neighbors.push([row + 1, col]);
+                } else {
+                    // 尖朝下：水平顶边朝上，第三邻在上一行
+                    if (row > 0) neighbors.push([row - 1, col]);
+                }
 
             } else if (sides === 4) {
                 // 正方形：8邻域
@@ -383,26 +410,12 @@
             return neighbors.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
         }
 
-        // 获取格子位置
+        // 获取格子位置（非三角形用）
         function getCellPosition(row, col) {
             const invert = shouldInvert(row, col);
             let x, y;
 
-            if (sides === 3) {
-                // 三角形 - 翻转后刚好重叠
-                // 水平方向：两个三角形并排可重叠
-                // 垂直方向：两个三角形边对边
-                const triHeight = cellSize * 0.866;
-                const triWidth = cellSize;
-                // 格子间距为0，紧密排列
-                x = col * (triWidth * 0.5) + triWidth * 0.5;
-                y = row * (triHeight * 0.5) + triHeight * 0.5;
-                // 翻转的三角形位置调整
-                if (invert) {
-                    y += triHeight * 0.5;
-                }
-
-            } else if (sides === 4) {
+            if (sides === 4) {
                 // 正方形
                 x = col * cellSize + cellSize * 0.5;
                 y = row * cellSize + cellSize * 0.5;
@@ -446,9 +459,9 @@
             let width, height;
 
             if (sides === 3) {
-                const triHeight = cellSize * 0.866;
-                width = cols * (cellSize * 0.5) + cellSize;
-                height = rows * (triHeight * 0.5) + triHeight * 0.5 + cellSize;
+                const triH = cellSize * Math.sqrt(3) / 2;
+                width = Math.ceil(cols * cellSize / 2 + cellSize / 2) + 2;
+                height = Math.ceil(rows * triH) + 2;
             } else if (sides === 4) {
                 width = cols * cellSize + cellSize;
                 height = rows * cellSize + cellSize;
@@ -549,7 +562,109 @@
                 }
             }
 
-            // 创建DOM元素
+            if (sides === 3) {
+                createTriangleBoard(boardEl, width, height);
+            } else {
+                createPolygonBoard(boardEl);
+            }
+        }
+
+        // 三角形棋盘：用 SVG 精确绘制，无缝拼接
+        function createTriangleBoard(boardEl, width, height) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            svg.style.display = 'block';
+            svg.style.overflow = 'visible';
+
+            // 定义渐变和样式
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+            const gradNormal = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+            gradNormal.setAttribute('id', 'tri-grad-normal');
+            gradNormal.setAttribute('x1', '0%'); gradNormal.setAttribute('y1', '0%');
+            gradNormal.setAttribute('x2', '100%'); gradNormal.setAttribute('y2', '100%');
+            const s1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#3a3a5c');
+            const s2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#2a2a4c');
+            gradNormal.appendChild(s1); gradNormal.appendChild(s2);
+
+            const gradRevealed = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+            gradRevealed.setAttribute('id', 'tri-grad-revealed');
+            gradRevealed.setAttribute('x1', '0%'); gradRevealed.setAttribute('y1', '0%');
+            gradRevealed.setAttribute('x2', '100%'); gradRevealed.setAttribute('y2', '100%');
+            const s3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            s3.setAttribute('offset', '0%'); s3.setAttribute('stop-color', '#1a1a2e');
+            const s4 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+            s4.setAttribute('offset', '100%'); s4.setAttribute('stop-color', '#1a1a2e');
+            gradRevealed.appendChild(s3); gradRevealed.appendChild(s4);
+
+            defs.appendChild(gradNormal);
+            defs.appendChild(gradRevealed);
+            svg.appendChild(defs);
+
+            const numberColors = {
+                1: '#4a9eff', 2: '#2ed573', 3: '#ff4757',
+                4: '#a55eea', 5: '#ffa502', 6: '#1dd1a1',
+                7: '#ff6b81', 8: '#70a1ff'
+            };
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const key = `${i},${j}`;
+                    const verts = getTriVertices(i, j);
+                    const center = getTriCenter(i, j);
+                    const pts = verts.map(v => v.join(',')).join(' ');
+
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.dataset.row = i;
+                    g.dataset.col = j;
+                    g.style.cursor = 'pointer';
+
+                    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    poly.setAttribute('points', pts);
+                    poly.setAttribute('fill', 'url(#tri-grad-normal)');
+                    poly.setAttribute('stroke', '#0f0f23');
+                    poly.setAttribute('stroke-width', '1.5');
+                    poly.setAttribute('stroke-linejoin', 'round');
+                    g.appendChild(poly);
+
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', center.x);
+                    text.setAttribute('y', center.y + 5);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '12');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, sans-serif');
+                    text.setAttribute('pointer-events', 'none');
+                    text.setAttribute('fill', 'transparent');
+                    g.appendChild(text);
+
+                    // 悬停效果
+                    g.addEventListener('mouseenter', () => {
+                        if (!revealed[key] && !flagged[key] && !gameOver) {
+                            poly.setAttribute('fill', '#4a4a7c');
+                        }
+                    });
+                    g.addEventListener('mouseleave', () => {
+                        if (!revealed[key] && !flagged[key]) {
+                            poly.setAttribute('fill', 'url(#tri-grad-normal)');
+                        }
+                    });
+
+                    g.addEventListener('click', () => handleClick(i, j));
+                    g.addEventListener('contextmenu', (e) => handleRightClick(e, i, j));
+
+                    svg.appendChild(g);
+                }
+            }
+
+            boardEl.appendChild(svg);
+        }
+
+        // 非三角形棋盘（原有逻辑）
+        function createPolygonBoard(boardEl) {
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     const invert = shouldInvert(i, j);
@@ -612,6 +727,12 @@
             checkWin();
         }
 
+        const numberColors = {
+            1: '#4a9eff', 2: '#2ed573', 3: '#ff4757',
+            4: '#a55eea', 5: '#ffa502', 6: '#1dd1a1',
+            7: '#ff6b81', 8: '#70a1ff'
+        };
+
         function handleRightClick(e, row, col) {
             e.preventDefault();
             const key = `${row},${col}`;
@@ -619,18 +740,37 @@
 
             startTimer();
 
-            const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-
-            if (flagged[key]) {
-                flagged[key] = false;
-                cell.classList.remove('flagged');
-                cell.textContent = '';
-                document.getElementById('mineCount').textContent = ++mineCount;
+            if (sides === 3) {
+                const g = document.querySelector(`svg g[data-row="${row}"][data-col="${col}"]`);
+                const poly = g.querySelector('polygon');
+                const text = g.querySelector('text');
+                if (flagged[key]) {
+                    flagged[key] = false;
+                    poly.setAttribute('fill', 'url(#tri-grad-normal)');
+                    text.textContent = '';
+                    text.setAttribute('fill', 'transparent');
+                    document.getElementById('mineCount').textContent = ++mineCount;
+                } else {
+                    flagged[key] = true;
+                    poly.setAttribute('fill', '#3a2a4c');
+                    text.textContent = '🚩';
+                    text.setAttribute('fill', '#ff6b6b');
+                    text.setAttribute('font-size', '12');
+                    document.getElementById('mineCount').textContent = --mineCount;
+                }
             } else {
-                flagged[key] = true;
-                cell.classList.add('flagged');
-                cell.textContent = '🚩';
-                document.getElementById('mineCount').textContent = --mineCount;
+                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (flagged[key]) {
+                    flagged[key] = false;
+                    cell.classList.remove('flagged');
+                    cell.textContent = '';
+                    document.getElementById('mineCount').textContent = ++mineCount;
+                } else {
+                    flagged[key] = true;
+                    cell.classList.add('flagged');
+                    cell.textContent = '🚩';
+                    document.getElementById('mineCount').textContent = --mineCount;
+                }
             }
         }
 
@@ -640,23 +780,50 @@
             if (row < 0 || row >= rows || col < 0 || col >= cols) return;
 
             revealed[key] = true;
-            const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
-            cell.classList.add('revealed');
 
-            if (board[key] > 0) {
-                cell.textContent = board[key];
-                cell.dataset.number = board[key];
-            } else if (board[key] === 0) {
-                const neighbors = getNeighbors(row, col);
-                neighbors.forEach(([r, c]) => revealCell(r, c));
+            if (sides === 3) {
+                const g = document.querySelector(`svg g[data-row="${row}"][data-col="${col}"]`);
+                const poly = g.querySelector('polygon');
+                const text = g.querySelector('text');
+                poly.setAttribute('fill', '#1a1a2e');
+                if (board[key] > 0) {
+                    text.textContent = board[key];
+                    text.setAttribute('fill', numberColors[board[key]] || '#fff');
+                } else if (board[key] === 0) {
+                    text.textContent = '';
+                    const neighbors = getNeighbors(row, col);
+                    neighbors.forEach(([r, c]) => revealCell(r, c));
+                }
+            } else {
+                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                cell.classList.add('revealed');
+                if (board[key] > 0) {
+                    cell.textContent = board[key];
+                    cell.dataset.number = board[key];
+                } else if (board[key] === 0) {
+                    const neighbors = getNeighbors(row, col);
+                    neighbors.forEach(([r, c]) => revealCell(r, c));
+                }
             }
         }
 
         function revealAllMines() {
             mineLocations.forEach(([r, c]) => {
-                const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
-                cell.classList.add('revealed', 'mine');
-                cell.textContent = '💣';
+                if (sides === 3) {
+                    const g = document.querySelector(`svg g[data-row="${r}"][data-col="${c}"]`);
+                    if (!g) return;
+                    const poly = g.querySelector('polygon');
+                    const text = g.querySelector('text');
+                    poly.setAttribute('fill', '#ff4757');
+                    text.textContent = '💣';
+                    text.setAttribute('fill', '#fff');
+                    text.setAttribute('font-size', '12');
+                } else {
+                    const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+                    if (!cell) return;
+                    cell.classList.add('revealed', 'mine');
+                    cell.textContent = '💣';
+                }
             });
         }
 
@@ -678,9 +845,18 @@
                 mineLocations.forEach(([r, c]) => {
                     const key = `${r},${c}`;
                     if (!flagged[key]) {
-                        const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
-                        cell.classList.add('flagged');
-                        cell.textContent = '🚩';
+                        if (sides === 3) {
+                            const g = document.querySelector(`svg g[data-row="${r}"][data-col="${c}"]`);
+                            if (g) {
+                                g.querySelector('polygon').setAttribute('fill', '#3a2a4c');
+                                const t = g.querySelector('text');
+                                t.textContent = '🚩';
+                                t.setAttribute('fill', '#ff6b6b');
+                            }
+                        } else {
+                            const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+                            if (cell) { cell.classList.add('flagged'); cell.textContent = '🚩'; }
+                        }
                     }
                 });
             }
