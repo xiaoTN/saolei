@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>扫雷游戏</title>
+    <title>多边形扫雷游戏</title>
     <style>
         * {
             margin: 0;
@@ -26,7 +26,7 @@
             border-radius: 16px;
             padding: 30px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            max-width: 500px;
+            max-width: 600px;
             width: 100%;
         }
 
@@ -43,6 +43,7 @@
             margin-bottom: 20px;
             flex-wrap: wrap;
             justify-content: center;
+            align-items: center;
         }
 
         .setting-item {
@@ -56,8 +57,8 @@
             font-size: 14px;
         }
 
-        .setting-item input {
-            width: 60px;
+        .setting-item input, .setting-item select {
+            width: 70px;
             padding: 8px;
             border: 1px solid #333;
             border-radius: 6px;
@@ -67,7 +68,7 @@
             font-size: 14px;
         }
 
-        .setting-item input:focus {
+        .setting-item input:focus, .setting-item select:focus {
             outline: none;
             border-color: #4a9eff;
         }
@@ -108,33 +109,29 @@
         }
 
         .game-board {
-            display: grid;
-            gap: 4px;
-            background: #333;
-            padding: 4px;
-            border-radius: 8px;
-            margin: 0 auto;
+            position: relative;
+            margin: 20px auto;
+            width: fit-content;
         }
 
         .cell {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #3a3a5c, #2a2a4c);
-            border: none;
-            border-radius: 4px;
+            position: absolute;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 18px;
+            font-size: 14px;
             transition: all 0.15s;
             user-select: none;
+            clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+            background: linear-gradient(135deg, #3a3a5c, #2a2a4c);
         }
 
         .cell:hover:not(.revealed):not(.flagged) {
             background: linear-gradient(135deg, #4a4a7c, #3a3a6c);
-            transform: scale(1.05);
+            transform: scale(1.1);
+            z-index: 10;
         }
 
         .cell.revealed {
@@ -143,7 +140,7 @@
         }
 
         .cell.mine {
-            background: #ff4757;
+            background: #ff4757 !important;
             animation: pulse 0.5s ease-in-out;
         }
 
@@ -162,7 +159,7 @@
 
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            50% { transform: scale(1.15); }
         }
 
         .message {
@@ -192,30 +189,49 @@
             font-size: 12px;
             margin-top: 15px;
         }
+
+        .shape-preview {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            background: linear-gradient(135deg, #4a4a7c, #3a3a6c);
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>💣 扫雷游戏</h1>
+        <h1>💣 多边形扫雷</h1>
 
         <div class="settings">
             <div class="setting-item">
+                <label>边数:</label>
+                <select id="sides" onchange="updateCellSize()">
+                    <option value="3">3边 (三角形)</option>
+                    <option value="4" selected>4边 (正方形)</option>
+                    <option value="5">5边 (五边形)</option>
+                    <option value="6">6边 (六边形)</option>
+                    <option value="8">8边 (八边形)</option>
+                </select>
+            </div>
+            <div class="setting-item">
                 <label>行数:</label>
-                <input type="number" id="rows" value="6" min="3" max="20">
+                <input type="number" id="rows" value="8" min="3" max="15">
             </div>
             <div class="setting-item">
                 <label>列数:</label>
-                <input type="number" id="cols" value="6" min="3" max="20">
+                <input type="number" id="cols" value="8" min="3" max="15">
             </div>
             <div class="setting-item">
                 <label>雷数:</label>
-                <input type="number" id="mines" value="8" min="1">
+                <input type="number" id="mines" value="10" min="1">
             </div>
             <button onclick="initGame()">开始游戏</button>
         </div>
 
         <div class="status-bar">
-            <div class="status-item">剩余雷数: <span id="mineCount">8</span></div>
+            <div class="status-item">剩余雷数: <span id="mineCount">10</span></div>
             <div class="status-item">用时: <span id="timer">0</span>秒</div>
         </div>
 
@@ -227,69 +243,179 @@
     </div>
 
     <script>
-        let board = [];
-        let revealed = [];
-        let flagged = [];
+        let board = {};
+        let revealed = {};
+        let flagged = {};
         let mineLocations = [];
         let gameOver = false;
         let mineCount = 0;
         let timer = 0;
         let timerInterval = null;
-        let rows = 6;
-        let cols = 6;
+        let rows = 8;
+        let cols = 8;
+        let sides = 4;
+        let cellSize = 40;
+        let cellSpacing = 8;
+
+        function getClipPath(sides) {
+            if (sides === 3) {
+                return 'polygon(50% 0%, 100% 100%, 0% 100%)';
+            } else if (sides === 4) {
+                return 'polygon(10% 0%, 90% 0%, 100% 10%, 100% 90%, 90% 100%, 10% 100%, 0% 90%, 0% 10%)';
+            } else if (sides === 5) {
+                return 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)';
+            } else if (sides === 6) {
+                return 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+            } else if (sides === 8) {
+                return 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
+            }
+            return 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)';
+        }
+
+        function getNeighbors(row, col) {
+            const neighbors = [];
+            const key = (r, c) => `${r},${c}`;
+
+            if (sides === 3) {
+                // 三角形布局 - 奇偶行错位
+                if (col % 2 === 0) {
+                    // 偶数列：上左右
+                    if (row > 0) neighbors.push([row - 1, col]);
+                    neighbors.push([row, col - 1]);
+                    neighbors.push([row, col + 1]);
+                    neighbors.push([row + 1, col]);
+                } else {
+                    // 奇数列：下左右
+                    neighbors.push([row - 1, col]);
+                    neighbors.push([row, col - 1]);
+                    neighbors.push([row, col + 1]);
+                    if (row < rows - 1) neighbors.push([row + 1, col]);
+                }
+            } else if (sides === 4) {
+                // 正方形：8邻域
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = row + dr, nc = col + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                            neighbors.push([nr, nc]);
+                        }
+                    }
+                }
+            } else if (sides === 5) {
+                // 五边形布局
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = row + dr, nc = col + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                            neighbors.push([nr, nc]);
+                        }
+                    }
+                }
+            } else if (sides === 6) {
+                // 六边形布局 (蜂窝状)
+                if (col % 2 === 0) {
+                    // 偶数列
+                    neighbors.push([row - 1, col - 1], [row - 1, col]);
+                    neighbors.push([row, col - 1], [row, col + 1]);
+                    neighbors.push([row + 1, col - 1], [row + 1, col]);
+                } else {
+                    // 奇数列
+                    neighbors.push([row - 1, col], [row - 1, col + 1]);
+                    neighbors.push([row, col - 1], [row, col + 1]);
+                    neighbors.push([row + 1, col], [row + 1, col + 1]);
+                }
+            } else if (sides === 8) {
+                // 八边形：8邻域
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = row + dr, nc = col + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                            neighbors.push([nr, nc]);
+                        }
+                    }
+                }
+            }
+
+            return neighbors.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
+        }
+
+        function getCellPosition(row, col) {
+            const width = cellSize + cellSpacing;
+            const height = (cellSize + cellSpacing) * (sides === 3 ? 0.75 : sides === 6 ? 0.866 : 0.9);
+
+            let x = col * width + cellSize / 2;
+            let y = row * height + cellSize / 2;
+
+            if (sides === 3 && col % 2 === 1) {
+                y += height * 0.5;
+            }
+            if (sides === 6 && col % 2 === 1) {
+                y += height * 0.5;
+            }
+
+            return { x, y };
+        }
+
+        function updateCellSize() {
+            sides = parseInt(document.getElementById('sides').value);
+            const sizeMap = { 3: 44, 4: 38, 5: 40, 6: 38, 8: 36 };
+            cellSize = sizeMap[sides] || 40;
+        }
 
         function initGame() {
-            // 获取设置
+            updateCellSize();
+
             rows = parseInt(document.getElementById('rows').value);
             cols = parseInt(document.getElementById('cols').value);
             mineCount = parseInt(document.getElementById('mines').value);
 
-            // 验证雷数
-            const maxMines = rows * cols - 9;
+            const maxMines = Math.floor(rows * cols * 0.8);
             if (mineCount > maxMines) {
                 mineCount = maxMines;
                 document.getElementById('mines').value = mineCount;
             }
             if (mineCount < 1) mineCount = 1;
 
-            // 重置状态
-            board = [];
-            revealed = [];
-            flagged = [];
+            board = {};
+            revealed = {};
+            flagged = {};
             mineLocations = [];
             gameOver = false;
             timer = 0;
 
-            // 清除计时器
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
 
-            // 更新显示
             document.getElementById('mineCount').textContent = mineCount;
             document.getElementById('timer').textContent = '0';
             document.getElementById('message').className = 'message';
             document.getElementById('message').textContent = '';
 
-            // 创建棋盘
             createBoard();
         }
 
         function createBoard() {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
-            boardEl.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
 
-            // 初始化数组
+            // 计算画布大小
+            const width = cols * (cellSize + cellSpacing) + cellSize;
+            const height = rows * (cellSize + cellSpacing) * (sides === 3 || sides === 6 ? 0.9 : 0.85) + cellSize * 2;
+            boardEl.style.width = width + 'px';
+            boardEl.style.height = height + 'px';
+
+            // 初始化格子
             for (let i = 0; i < rows; i++) {
-                board[i] = [];
-                revealed[i] = [];
-                flagged[i] = [];
                 for (let j = 0; j < cols; j++) {
-                    board[i][j] = 0;
-                    revealed[i][j] = false;
-                    flagged[i][j] = false;
+                    const key = `${i},${j}`;
+                    board[key] = 0;
+                    revealed[key] = false;
+                    flagged[key] = false;
                 }
             }
 
@@ -298,8 +424,9 @@
             while (minesPlaced < mineCount) {
                 const r = Math.floor(Math.random() * rows);
                 const c = Math.floor(Math.random() * cols);
-                if (board[r][c] !== -1) {
-                    board[r][c] = -1;
+                const key = `${r},${c}`;
+                if (board[key] !== -1) {
+                    board[key] = -1;
                     mineLocations.push([r, c]);
                     minesPlaced++;
                 }
@@ -308,8 +435,9 @@
             // 计算每个格子的数字
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
-                    if (board[i][j] !== -1) {
-                        board[i][j] = countMines(i, j);
+                    const key = `${i},${j}`;
+                    if (board[key] !== -1) {
+                        board[key] = countMines(i, j);
                     }
                 }
             }
@@ -319,8 +447,15 @@
                 for (let j = 0; j < cols; j++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
+                    cell.style.width = cellSize + 'px';
+                    cell.style.height = cellSize + 'px';
+                    cell.style.clipPath = getClipPath(sides);
                     cell.dataset.row = i;
                     cell.dataset.col = j;
+
+                    const pos = getCellPosition(i, j);
+                    cell.style.left = (pos.x - cellSize / 2) + 'px';
+                    cell.style.top = (pos.y - cellSize / 2) + 'px';
 
                     cell.addEventListener('click', () => handleClick(i, j));
                     cell.addEventListener('contextmenu', (e) => handleRightClick(e, i, j));
@@ -332,13 +467,10 @@
 
         function countMines(row, col) {
             let count = 0;
-            for (let i = row - 1; i <= row + 1; i++) {
-                for (let j = col - 1; j <= col + 1; j++) {
-                    if (i >= 0 && i < rows && j >= 0 && j < cols && board[i][j] === -1) {
-                        count++;
-                    }
-                }
-            }
+            const neighbors = getNeighbors(row, col);
+            neighbors.forEach(([r, c]) => {
+                if (board[`${r},${c}`] === -1) count++;
+            });
             return count;
         }
 
@@ -352,12 +484,12 @@
         }
 
         function handleClick(row, col) {
-            if (gameOver || revealed[row][col] || flagged[row][col]) return;
+            const key = `${row},${col}`;
+            if (gameOver || revealed[key] || flagged[key]) return;
 
             startTimer();
 
-            if (board[row][col] === -1) {
-                // 踩到雷了
+            if (board[key] === -1) {
                 revealAllMines();
                 gameOver = true;
                 clearInterval(timerInterval);
@@ -373,19 +505,20 @@
 
         function handleRightClick(e, row, col) {
             e.preventDefault();
-            if (gameOver || revealed[row][col]) return;
+            const key = `${row},${col}`;
+            if (gameOver || revealed[key]) return;
 
             startTimer();
 
             const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
 
-            if (flagged[row][col]) {
-                flagged[row][col] = false;
+            if (flagged[key]) {
+                flagged[key] = false;
                 cell.classList.remove('flagged');
                 cell.textContent = '';
                 document.getElementById('mineCount').textContent = ++mineCount;
             } else {
-                flagged[row][col] = true;
+                flagged[key] = true;
                 cell.classList.add('flagged');
                 cell.textContent = '🚩';
                 document.getElementById('mineCount').textContent = --mineCount;
@@ -393,23 +526,20 @@
         }
 
         function revealCell(row, col) {
+            const key = `${row},${col}`;
+            if (revealed[key] || flagged[key]) return;
             if (row < 0 || row >= rows || col < 0 || col >= cols) return;
-            if (revealed[row][col] || flagged[row][col]) return;
 
-            revealed[row][col] = true;
+            revealed[key] = true;
             const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
             cell.classList.add('revealed');
 
-            if (board[row][col] > 0) {
-                cell.textContent = board[row][col];
-                cell.dataset.number = board[row][col];
-            } else if (board[row][col] === 0) {
-                // 空格子，递归揭示周围格子
-                for (let i = row - 1; i <= row + 1; i++) {
-                    for (let j = col - 1; j <= col + 1; j++) {
-                        revealCell(i, j);
-                    }
-                }
+            if (board[key] > 0) {
+                cell.textContent = board[key];
+                cell.dataset.number = board[key];
+            } else if (board[key] === 0) {
+                const neighbors = getNeighbors(row, col);
+                neighbors.forEach(([r, c]) => revealCell(r, c));
             }
         }
 
@@ -425,7 +555,7 @@
             let revealedCount = 0;
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
-                    if (revealed[i][j]) revealedCount++;
+                    if (revealed[`${i},${j}`]) revealedCount++;
                 }
             }
 
@@ -436,9 +566,9 @@
                 messageEl.textContent = `🎉 恭喜！你赢了！用时 ${timer} 秒`;
                 messageEl.className = 'message win';
 
-                // 标记所有雷
                 mineLocations.forEach(([r, c]) => {
-                    if (!flagged[r][c]) {
+                    const key = `${r},${c}`;
+                    if (!flagged[key]) {
                         const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
                         cell.classList.add('flagged');
                         cell.textContent = '🚩';
@@ -447,7 +577,6 @@
             }
         }
 
-        // 初始化游戏
         initGame();
     </script>
 </body>
