@@ -200,7 +200,6 @@
                 <select id="sides" onchange="updateCellSize()">
                     <option value="3">3边 (三角形)</option>
                     <option value="4" selected>4边 (正方形)</option>
-                    <option value="5">4边 (菱形)</option>
                     <option value="6">6边 (六边形)</option>
                     <option value="8">8+4 (八边形+正方形)</option>
                 </select>
@@ -308,36 +307,6 @@
 
         function sqBoardSize() {
             return { width: cols * cellSize + 2, height: rows * cellSize + 2 };
-        }
-
-        // --- 菱形（5边 → 用45°旋转正方形平铺，视觉上是菱形）---
-        // 实际上是正方形旋转45°的菱形平铺，步进是对角线长度/2
-        // 用 axial 坐标：菱形格，对角线=cellSize，列间距=cellSize/2，行间距=cellSize/2
-        function rhombusVertices(row, col) {
-            const h = cellSize / 2; // 半对角线
-            const cx = col * h + (row % 2 === 0 ? 0 : h);
-            const cy = row * h;
-            return [
-                [cx,   cy - h], // 上
-                [cx + h, cy],   // 右
-                [cx,   cy + h], // 下
-                [cx - h, cy],   // 左
-            ];
-        }
-
-        function rhombusNeighbors(row, col) {
-            // 菱形平铺：每格4个邻居（共享边）
-            const nb = [];
-            if (col > 0) nb.push([row, col - 1]);
-            if (col < cols - 1) nb.push([row, col + 1]);
-            if (row > 0) nb.push([row - 1, col]);
-            if (row < rows - 1) nb.push([row + 1, col]);
-            return nb;
-        }
-
-        function rhombusBoardSize() {
-            const h = cellSize / 2;
-            return { width: cols * h + h + 4, height: rows * h + h + 4 };
         }
 
         // --- 六边形（6边）---
@@ -468,7 +437,6 @@
         function getCellVertices(row, col) {
             if (sides === 3) return triVertices(row, col);
             if (sides === 4) return sqVertices(row, col);
-            if (sides === 5) return rhombusVertices(row, col);
             if (sides === 6) return hexVertices(row, col);
             if (sides === 8) return octSqVertices(row, col);
         }
@@ -484,7 +452,6 @@
             let nb;
             if (sides === 3) nb = triNeighbors(row, col);
             else if (sides === 4) nb = sqNeighbors(row, col);
-            else if (sides === 5) nb = rhombusNeighbors(row, col);
             else if (sides === 6) nb = hexNeighbors(row, col);
             else if (sides === 8) nb = octSqNeighbors(row, col);
             else nb = [];
@@ -494,7 +461,6 @@
         function getBoardSize() {
             if (sides === 3) return triBoardSize();
             if (sides === 4) return sqBoardSize();
-            if (sides === 5) return rhombusBoardSize();
             if (sides === 6) return hexBoardSize();
             if (sides === 8) return octSqBoardSize();
             return { width: 400, height: 400 };
@@ -506,7 +472,7 @@
 
         function updateCellSize() {
             sides = parseInt(document.getElementById('sides').value);
-            const sizeMap = { 3: 48, 4: 40, 5: 50, 6: 44, 8: 44 };
+            const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
             cellSize = sizeMap[sides] || 44;
         }
 
