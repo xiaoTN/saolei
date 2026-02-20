@@ -26,7 +26,7 @@
             border-radius: 16px;
             padding: 30px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            max-width: 600px;
+            max-width: 700px;
             width: 100%;
         }
 
@@ -124,7 +124,6 @@
             font-size: 14px;
             transition: all 0.15s;
             user-select: none;
-            clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
             background: linear-gradient(135deg, #3a3a5c, #2a2a4c);
         }
 
@@ -189,15 +188,6 @@
             font-size: 12px;
             margin-top: 15px;
         }
-
-        .shape-preview {
-            width: 20px;
-            height: 20px;
-            display: inline-block;
-            vertical-align: middle;
-            background: linear-gradient(135deg, #4a4a7c, #3a3a6c);
-            margin-left: 5px;
-        }
     </style>
 </head>
 <body>
@@ -255,50 +245,77 @@
         let cols = 8;
         let sides = 4;
         let cellSize = 44;
-        let cellSpacing = 0;
 
-        function getClipPath(sides) {
+        // 根据边数获取clip-path
+        function getClipPath(sides, inverted = false) {
             if (sides === 3) {
-                return 'polygon(50% 0%, 100% 86.6%, 50% 100%, 0% 86.6%)';
+                // 三角形 - inverted=true 表示旋转180度
+                if (inverted) {
+                    return 'polygon(50% 100%, 0% 13.4%, 100% 13.4%)';
+                }
+                return 'polygon(50% 0%, 0% 86.6%, 100% 86.6%)';
             } else if (sides === 4) {
                 return 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
             } else if (sides === 5) {
-                // 更圆润的五边形
+                if (inverted) {
+                    return 'polygon(50% 100%, 5% 69%, 19% 5%, 81% 5%, 95% 69%)';
+                }
                 return 'polygon(50% 0%, 95% 31%, 81% 95%, 19% 95%, 5% 31%)';
             } else if (sides === 6) {
+                if (inverted) {
+                    return 'polygon(25% 100%, 0% 50%, 25% 0%, 75% 0%, 100% 50%, 75% 100%)';
+                }
                 return 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
             } else if (sides === 8) {
-                // 更圆润的八边形
+                if (inverted) {
+                    return 'polygon(30% 100%, 0% 70%, 0% 30%, 30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%)';
+                }
                 return 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
             }
             return 'polygon(50% 0%, 95% 31%, 81% 95%, 19% 95%, 5% 31%)';
         }
 
+        // 判断格子是否需要翻转（交替）
+        function shouldInvert(row, col) {
+            if (sides === 3) {
+                // 三角形：棋盘格交错排列，相邻格子翻转
+                return (row + col) % 2 === 1;
+            } else if (sides === 5) {
+                // 五边形：交错排列
+                return (row + col) % 2 === 1;
+            } else if (sides === 6) {
+                // 六边形：蜂窝状，奇偶列不同
+                return col % 2 === 1;
+            } else if (sides === 8) {
+                // 八边形：交错排列
+                return (row + col) % 2 === 1;
+            }
+            return false;
+        }
+
+        // 获取相邻格子
         function getNeighbors(row, col) {
             const neighbors = [];
+            const invert = shouldInvert(row, col);
 
             if (sides === 3) {
-                // 三角形布局 - 紧密贴合
-                // 奇偶列方向交替
-                if (col % 2 === 0) {
-                    // 偶数列：尖朝上，底在下 -> 相邻：左、右、下、左下、右下
-                    neighbors.push([row, col - 1]); // 左
-                    neighbors.push([row, col + 1]); // 右
-                    if (row < rows - 1) {
-                        neighbors.push([row + 1, col]); // 下
-                        neighbors.push([row + 1, col - 1]); // 左下
-                        if (col < cols - 1) neighbors.push([row + 1, col + 1]); // 右下
-                    }
+                // 三角形 - 紧密贴合布局
+                // 翻转的三角形与未翻转的三角形边对边重叠
+                if (invert) {
+                    // 翻转的三角形（尖朝下）: 上、左上、右上
+                    neighbors.push([row - 1, col]); // 上
+                    neighbors.push([row - 1, col + 1]); // 右上
+                    if (col > 0) neighbors.push([row - 1, col - 1]); // 左上
                 } else {
-                    // 奇数列：尖朝下，底在上 -> 相邻：左、右、上、左上、右上
-                    neighbors.push([row, col - 1]); // 左
-                    neighbors.push([row, col + 1]); // 右
-                    if (row > 0) {
-                        neighbors.push([row - 1, col]); // 上
-                        neighbors.push([row - 1, col - 1]); // 左上
-                        if (col < cols - 1) neighbors.push([row - 1, col + 1]); // 右上
-                    }
+                    // 正常的三角形（尖朝上）: 下、左下、右下
+                    neighbors.push([row + 1, col]); // 下
+                    neighbors.push([row + 1, col + 1]); // 右下
+                    if (col > 0) neighbors.push([row + 1, col - 1]); // 左下
                 }
+                // 左右相邻
+                if (col > 0) neighbors.push([row, col - 1]);
+                if (col < cols - 1) neighbors.push([row, col + 1]);
+
             } else if (sides === 4) {
                 // 正方形：8邻域
                 for (let dr = -1; dr <= 1; dr++) {
@@ -311,93 +328,150 @@
                     }
                 }
             } else if (sides === 5) {
-                // 五边形布局
-                for (let dr = -1; dr <= 1; dr++) {
-                    for (let dc = -1; dc <= 1; dc++) {
-                        if (dr === 0 && dc === 0) continue;
-                        const nr = row + dr, nc = col + dc;
-                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-                            neighbors.push([nr, nc]);
-                        }
+                // 五边形 - 翻转后边对边重叠
+                if (invert) {
+                    // 翻转的：上、下、左上、左下
+                    neighbors.push([row - 1, col], [row + 1, col]);
+                    if (col > 0) {
+                        neighbors.push([row - 1, col - 1]);
+                        neighbors.push([row + 1, col - 1]);
+                    }
+                } else {
+                    // 正常的：上、下、右上、右下
+                    neighbors.push([row - 1, col], [row + 1, col]);
+                    if (col < cols - 1) {
+                        neighbors.push([row - 1, col + 1]);
+                        neighbors.push([row + 1, col + 1]);
                     }
                 }
+                // 左右相邻
+                if (col > 0) neighbors.push([row, col - 1]);
+                if (col < cols - 1) neighbors.push([row, col + 1]);
+
             } else if (sides === 6) {
-                // 六边形布局 (蜂窝状)
+                // 六边形 - 蜂窝状布局（经典）
                 if (col % 2 === 0) {
-                    // 偶数列
-                    neighbors.push([row - 1, col - 1], [row - 1, col]);
-                    neighbors.push([row, col - 1], [row, col + 1]);
-                    neighbors.push([row + 1, col - 1], [row + 1, col]);
+                    // 偶数列：6个相邻
+                    neighbors.push([row - 1, col]); // 左上
+                    neighbors.push([row - 1, col + 1]); // 右上
+                    neighbors.push([row, col - 1]); // 左
+                    neighbors.push([row, col + 1]); // 右
+                    neighbors.push([row + 1, col]); // 左下
+                    neighbors.push([row + 1, col + 1]); // 右下
                 } else {
                     // 奇数列
-                    neighbors.push([row - 1, col], [row - 1, col + 1]);
-                    neighbors.push([row, col - 1], [row, col + 1]);
-                    neighbors.push([row + 1, col], [row + 1, col + 1]);
+                    neighbors.push([row - 1, col - 1]); // 左上
+                    neighbors.push([row - 1, col]); // 右上
+                    neighbors.push([row, col - 1]); // 左
+                    neighbors.push([row, col + 1]); // 右
+                    neighbors.push([row + 1, col - 1]); // 左下
+                    neighbors.push([row + 1, col]); // 右下
                 }
             } else if (sides === 8) {
-                // 八边形：8邻域
-                for (let dr = -1; dr <= 1; dr++) {
-                    for (let dc = -1; dc <= 1; dc++) {
-                        if (dr === 0 && dc === 0) continue;
-                        const nr = row + dr, nc = col + dc;
-                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-                            neighbors.push([nr, nc]);
-                        }
-                    }
+                // 八边形 - 翻转后边对边重叠
+                if (invert) {
+                    neighbors.push([row - 1, col], [row + 1, col]);
+                    if (col > 0) neighbors.push([row - 1, col - 1], [row, col - 1], [row + 1, col - 1]);
+                    if (col < cols - 1) neighbors.push([row - 1, col + 1], [row, col + 1], [row + 1, col + 1]);
+                } else {
+                    neighbors.push([row - 1, col], [row + 1, col]);
+                    if (col > 0) neighbors.push([row - 1, col - 1], [row, col - 1], [row + 1, col - 1]);
+                    if (col < cols - 1) neighbors.push([row - 1, col + 1], [row, col + 1], [row + 1, col + 1]);
                 }
             }
 
             return neighbors.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
         }
 
+        // 获取格子位置
         function getCellPosition(row, col) {
-            const cellHeight = cellSize * (sides === 3 ? 0.866 : sides === 6 ? 0.866 : sides === 5 ? 0.85 : sides === 8 ? 0.8 : 0.8);
+            const invert = shouldInvert(row, col);
             let x, y;
 
             if (sides === 3) {
-                // 三角形 - 紧密贴合
-                // 等边三角形：高度 = 边长 * sqrt(3)/2 ≈ 边长 * 0.866
+                // 三角形 - 翻转后刚好重叠
+                // 水平方向：两个三角形并排可重叠
+                // 垂直方向：两个三角形边对边
                 const triHeight = cellSize * 0.866;
-                x = col * (cellSize * 0.5) + cellSize / 2;
-                y = row * (triHeight * 0.5) + cellSize / 2;
-                // 奇偶列交替
-                if (col % 2 === 1) {
-                    y += triHeight * 0.25;
+                const triWidth = cellSize;
+                // 格子间距为0，紧密排列
+                x = col * (triWidth * 0.5) + triWidth * 0.5;
+                y = row * (triHeight * 0.5) + triHeight * 0.5;
+                // 翻转的三角形位置调整
+                if (invert) {
+                    y += triHeight * 0.5;
                 }
+
+            } else if (sides === 4) {
+                // 正方形
+                x = col * cellSize + cellSize * 0.5;
+                y = row * cellSize + cellSize * 0.5;
+
+            } else if (sides === 5) {
+                // 五边形 - 翻转后重叠
+                const pentWidth = cellSize;
+                const pentHeight = cellSize * 0.95;
+                x = col * (pentWidth * 0.5) + pentWidth * 0.5;
+                y = row * (pentHeight * 0.5) + pentHeight * 0.5;
+                if (invert) {
+                    y += pentHeight * 0.5;
+                }
+
             } else if (sides === 6) {
-                // 六边形 - 蜂窝状紧密贴合
+                // 六边形 - 蜂窝状
                 const hexHeight = cellSize * 0.866;
                 const hexWidth = cellSize;
-                x = col * (hexWidth * 0.75) + cellSize / 2;
-                y = row * (hexHeight * 0.75) + cellSize / 2;
+                x = col * (hexWidth * 0.75 + 1) + hexWidth * 0.5;
+                y = row * (hexHeight * 0.5 + 1) + hexHeight * 0.5;
                 if (col % 2 === 1) {
                     y += hexHeight * 0.5;
                 }
-            } else if (sides === 5) {
-                // 五边形 - 近似圆形紧密排列
-                x = col * (cellSize * 0.85) + cellSize / 2;
-                y = row * (cellSize * 0.85) + cellSize / 2;
-                if (col % 2 === 1) {
-                    y += cellSize * 0.35;
-                }
+
             } else if (sides === 8) {
-                // 八边形 - 近似圆形紧密排列
-                x = col * (cellSize * 0.85) + cellSize / 2;
-                y = row * (cellSize * 0.85) + cellSize / 2;
-            } else {
-                // 四边形 - 紧密方格
-                x = col * cellSize + cellSize / 2;
-                y = row * cellSize + cellSize / 2;
+                // 八边形 - 翻转后重叠
+                const octWidth = cellSize;
+                const octHeight = cellSize;
+                x = col * (octWidth * 0.5) + octWidth * 0.5;
+                y = row * (octHeight * 0.5) + octHeight * 0.5;
+                if (invert) {
+                    y += octHeight * 0.5;
+                }
             }
 
             return { x, y };
         }
 
+        // 计算画布大小
+        function getBoardSize() {
+            let width, height;
+
+            if (sides === 3) {
+                const triHeight = cellSize * 0.866;
+                width = cols * (cellSize * 0.5) + cellSize;
+                height = rows * (triHeight * 0.5) + triHeight * 0.5 + cellSize;
+            } else if (sides === 4) {
+                width = cols * cellSize + cellSize;
+                height = rows * cellSize + cellSize;
+            } else if (sides === 5) {
+                const pentHeight = cellSize * 0.95;
+                width = cols * (cellSize * 0.5) + cellSize;
+                height = rows * (pentHeight * 0.5) + pentHeight * 0.5 + cellSize;
+            } else if (sides === 6) {
+                const hexHeight = cellSize * 0.866;
+                width = cols * (cellSize * 0.75 + 1) + cellSize;
+                height = rows * (hexHeight * 0.5 + 1) + hexHeight + cellSize;
+            } else if (sides === 8) {
+                width = cols * (cellSize * 0.5) + cellSize;
+                height = rows * (cellSize * 0.5) + cellSize;
+            }
+
+            return { width, height };
+        }
+
         function updateCellSize() {
             sides = parseInt(document.getElementById('sides').value);
-            const sizeMap = { 3: 48, 4: 42, 5: 44, 6: 44, 8: 40 };
+            const sizeMap = { 3: 48, 4: 42, 5: 46, 6: 46, 8: 44 };
             cellSize = sizeMap[sides] || 44;
-            cellSpacing = 0;
         }
 
         function initGame() {
@@ -438,26 +512,7 @@
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
 
-            // 计算画布大小 - 根据不同边数紧密排列
-            let width, height;
-            if (sides === 3) {
-                const triHeight = cellSize * 0.866;
-                width = cols * (cellSize * 0.5) + cellSize * 1.5;
-                height = rows * (triHeight * 0.5) + triHeight * 1.5;
-            } else if (sides === 6) {
-                const hexHeight = cellSize * 0.866;
-                width = cols * (cellSize * 0.75) + cellSize * 1.5;
-                height = rows * (hexHeight * 0.75) + hexHeight * 1.5;
-            } else if (sides === 5) {
-                width = cols * (cellSize * 0.85) + cellSize * 1.5;
-                height = rows * (cellSize * 0.85) + cellSize * 1.5;
-            } else if (sides === 8) {
-                width = cols * (cellSize * 0.85) + cellSize * 1.5;
-                height = rows * (cellSize * 0.85) + cellSize * 1.5;
-            } else {
-                width = cols * cellSize + cellSize;
-                height = rows * cellSize + cellSize;
-            }
+            const { width, height } = getBoardSize();
             boardEl.style.width = width + 'px';
             boardEl.style.height = height + 'px';
 
@@ -497,11 +552,13 @@
             // 创建DOM元素
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
+                    const invert = shouldInvert(i, j);
+
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.style.width = cellSize + 'px';
                     cell.style.height = cellSize + 'px';
-                    cell.style.clipPath = getClipPath(sides);
+                    cell.style.clipPath = getClipPath(sides, invert);
                     cell.dataset.row = i;
                     cell.dataset.col = j;
 
