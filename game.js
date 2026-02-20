@@ -73,18 +73,27 @@ function _buildBoard() {
     boardEl.style.width  = width  + 'px';
     boardEl.style.height = height + 'px';
 
+    const allCells = getAllCells(sides);
+    const totalCells = allCells.length;
+
     // 初始化格子数据
-    for (let i = 0; i < rows; i++)
-        for (let j = 0; j < cols; j++) {
-            const key = `${i},${j}`;
-            board[key] = 0; revealed[key] = false; flagged[key] = false;
-        }
+    for (const [r, c] of allCells) {
+        const key = `${r},${c}`;
+        board[key] = 0; revealed[key] = false; flagged[key] = false;
+    }
 
     // 随机放置地雷
+    const maxMinesAllowed = Math.floor(totalCells * 0.8);
+    if (mineCount > maxMinesAllowed) {
+        mineCount = maxMinesAllowed;
+        totalMines = mineCount;
+        document.getElementById('mineCount').textContent = mineCount;
+    }
+
     let placed = 0;
     while (placed < mineCount) {
-        const r = Math.floor(Math.random() * rows);
-        const c = Math.floor(Math.random() * cols);
+        const idx = Math.floor(Math.random() * totalCells);
+        const [r, c] = allCells[idx];
         const key = `${r},${c}`;
         if (board[key] !== -1) {
             board[key] = -1;
@@ -94,12 +103,11 @@ function _buildBoard() {
     }
 
     // 计算每格周围雷数
-    for (let i = 0; i < rows; i++)
-        for (let j = 0; j < cols; j++) {
-            const key = `${i},${j}`;
-            if (board[key] !== -1)
-                board[key] = _countAdjacentMines(i, j);
-        }
+    for (const [r, c] of allCells) {
+        const key = `${r},${c}`;
+        if (board[key] !== -1)
+            board[key] = _countAdjacentMines(r, c);
+    }
 
     createSVGBoard(boardEl, width, height);
 }
@@ -183,8 +191,8 @@ function handleRightClick(e, row, col) {
 
 function revealCell(row, col) {
     const key = `${row},${col}`;
+    if (!(key in board)) return; // 不是有效格子（sides===8 扩展网格中的空位）
     if (revealed[key] || flagged[key]) return;
-    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
 
     revealed[key] = true;
     setCellState(row, col, 'revealed', board[key]);
@@ -195,12 +203,13 @@ function revealCell(row, col) {
 }
 
 function checkWin() {
+    const allCells = getAllCells(sides);
+    const totalCells = allCells.length;
     let revealedCount = 0;
-    for (let i = 0; i < rows; i++)
-        for (let j = 0; j < cols; j++)
-            if (revealed[`${i},${j}`]) revealedCount++;
+    for (const [r, c] of allCells)
+        if (revealed[`${r},${c}`]) revealedCount++;
 
-    if (revealedCount === rows * cols - totalMines) {
+    if (revealedCount === totalCells - totalMines) {
         gameOver = true;
         clearInterval(timerInterval);
         mineLocations.forEach(([r, c]) => {

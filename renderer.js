@@ -14,10 +14,8 @@ function createSVGBoard(boardEl, width, height) {
 
     svg.appendChild(_buildDefs());
 
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            svg.appendChild(_buildCell(i, j));
-        }
+    for (const [i, j] of getAllCells(sides)) {
+        svg.appendChild(_buildCell(i, j));
     }
 
     boardEl.appendChild(svg);
@@ -52,7 +50,8 @@ function _buildCell(row, col) {
     const [cx, cy] = getCellCenter(sides, row, col);
     const pts = verts.map(v => `${v[0].toFixed(2)},${v[1].toFixed(2)}`).join(' ');
 
-    const isSmallCell = (sides === 8 && (row + col) % 2 === 1);
+    // sides===8 扩展网格中，row(=gr) 为奇数时是小正方形
+    const isSmallCell = (sides === 8 && row % 2 === 1);
     const fontSize = isSmallCell ? 8 : (sides === 3 ? 11 : 13);
 
     const g = document.createElementNS(SVG_NS, 'g');

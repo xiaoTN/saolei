@@ -115,20 +115,31 @@ function hexBoardSize() {
 }
 
 // ─── 八边形+正方形（8边）─────────────────────────────────────
-// (row+col)%2==0 → 八边形，==1 → 填隙小正方形
-// 边长 a = cellSize / (1+√2)，中心步进 cellSize/2
-// 八边形有 8 个邻居（4个正方形 + 4个八边形）
-// 小正方形有 4 个邻居（均为八边形）
+// 使用扩展网格坐标 (gr, gc)，步进 = cellSize：
+//   八边形：gr = 2*r,   gc = 2*c    (r∈[0,rows), c∈[0,cols))
+//   小正方形：gr = 2*r+1, gc = 2*c+1 (r∈[0,rows-1), c∈[0,cols-1))
+//
+// 八边形边长 a = cellSize/(1+√2)，小正方形边长 = a（与八边形截角边等长）
+// 八边形中心步进 = cellSize，小正方形中心在四个八边形中心的几何中心
+//
+// 扩展网格中心坐标：cx = gc*cellSize/2 + cellSize/2, cy = gr*cellSize/2 + cellSize/2
+//
+// 邻居关系（扩展网格坐标）：
+//   八边形(gr,gc) → 4个正方形(gr±1, gc±1) + 4个八边形(gr, gc±2)和(gr±2, gc)
+//   正方形(gr,gc) → 4个八边形(gr±1, gc±1)
+//
+// game.js 中 rows/cols 指八边形的行列数
+// 所有格子通过 octSqAllCells() 枚举
 
-function octSqCenter(row, col) {
-    const d = cellSize;
-    return [col * d / 2 + d / 2, row * d / 2 + d / 2];
+function _octSqCenter(gr, gc) {
+    const step = cellSize / 2;
+    return [gc * step + step, gr * step + step];
 }
 
-function octVertices(cx, cy) {
-    const a = cellSize / (1 + Math.SQRT2);
-    const t = a * Math.SQRT2 / 2;
-    const s = a / 2;
+function _octVertices(cx, cy) {
+    const a = cellSize / (1 + Math.SQRT2); // 八边形边长
+    const s = a / 2;                        // 半边长
+    const t = a * Math.SQRT2 / 2;          // 截角水平/垂直投影 = s+t = cellSize/2
     return [
         [cx - s, cy - s - t],
         [cx + s, cy - s - t],
@@ -141,39 +152,69 @@ function octVertices(cx, cy) {
     ];
 }
 
-function sqSmallVertices(cx, cy) {
+function _sqSmallVertices(cx, cy) {
+    // 小正方形实为旋转45°的菱形，顶点在上下左右
+    // 半对角线 = t = a*√2/2，其中 a = cellSize/(1+√2)
+    // 顶点恰好与四周八边形的截角端点重合（数学验证）
     const a = cellSize / (1 + Math.SQRT2);
     const t = a * Math.SQRT2 / 2;
     return [
-        [cx - t, cy - t],
-        [cx + t, cy - t],
-        [cx + t, cy + t],
-        [cx - t, cy + t],
+        [cx,     cy - t], // 上
+        [cx + t, cy    ], // 右
+        [cx,     cy + t], // 下
+        [cx - t, cy    ], // 左
     ];
 }
 
-function octSqVertices(row, col) {
-    const [cx, cy] = octSqCenter(row, col);
-    return (row + col) % 2 === 0 ? octVertices(cx, cy) : sqSmallVertices(cx, cy);
+// (gr, gc) 是扩展网格坐标
+function octSqVertices(gr, gc) {
+    const [cx, cy] = _octSqCenter(gr, gc);
+    return gr % 2 === 0 ? _octVertices(cx, cy) : _sqSmallVertices(cx, cy);
 }
 
-function octSqNeighbors(row, col) {
+// game.js 用 key=`${gr},${gc}` 索引，需要提供枚举所有有效格的方法
+// 有效格：gr偶gc偶（八边形）或 gr奇gc奇（正方形）
+function octSqAllCells() {
+    const cells = [];
+    const grMax = 2 * rows - 1;
+    const gcMax = 2 * cols - 1;
+    for (let gr = 0; gr < grMax; gr++)
+        for (let gc = 0; gc < gcMax; gc++)
+            if ((gr + gc) % 2 === 0) cells.push([gr, gc]);
+    return cells;
+}
+
+function octSqNeighbors(gr, gc) {
     const nb = [];
-    const dirs = (row + col) % 2 === 0
-        ? [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]  // 八边形：8邻
-        : [[-1,0],[1,0],[0,-1],[0,1]];                               // 正方形：4邻
-    for (const [dr, dc] of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) nb.push([nr, nc]);
+    const grMax = 2 * rows - 1;
+    const gcMax = 2 * cols - 1;
+    if (gr % 2 === 0) {
+        // 八边形 → 4个正方形(对角) + 4个八边形(上下左右各2步)
+        const diag = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        const axial = [[-2,0],[2,0],[0,-2],[0,2]];
+        for (const [dr, dc] of [...diag, ...axial]) {
+            const nr = gr + dr, nc = gc + dc;
+            if (nr >= 0 && nr < grMax && nc >= 0 && nc < gcMax && (nr + nc) % 2 === 0)
+                nb.push([nr, nc]);
+        }
+    } else {
+        // 正方形 → 4个八边形(对角)
+        for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+            const nr = gr + dr, nc = gc + dc;
+            if (nr >= 0 && nr < grMax && nc >= 0 && nc < gcMax)
+                nb.push([nr, nc]);
+        }
     }
     return nb;
 }
 
 function octSqBoardSize() {
-    const d = cellSize;
+    const grMax = 2 * rows - 1;
+    const gcMax = 2 * cols - 1;
+    const step = cellSize / 2;
     return {
-        width:  Math.ceil(cols * d / 2 + d / 2) + 4,
-        height: Math.ceil(rows * d / 2 + d / 2) + 4,
+        width:  Math.ceil(gcMax * step + step) + 4,
+        height: Math.ceil(grMax * step + step) + 4,
     };
 }
 
@@ -183,7 +224,7 @@ function getCellVertices(sides, row, col) {
     if (sides === 3) return triVertices(row, col);
     if (sides === 4) return sqVertices(row, col);
     if (sides === 6) return hexVertices(row, col);
-    if (sides === 8) return octSqVertices(row, col);
+    if (sides === 8) return octSqVertices(row, col); // row,col 是扩展网格坐标 gr,gc
 }
 
 function getCellCenter(sides, row, col) {
@@ -193,6 +234,16 @@ function getCellCenter(sides, row, col) {
     return [x, y];
 }
 
+// 返回所有有效格子坐标列表（sides===8 时用扩展网格）
+function getAllCells(sides) {
+    if (sides === 8) return octSqAllCells();
+    const cells = [];
+    for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++)
+            cells.push([r, c]);
+    return cells;
+}
+
 function getNeighbors(sides, row, col) {
     let nb;
     if (sides === 3) nb = triNeighbors(row, col);
@@ -200,7 +251,10 @@ function getNeighbors(sides, row, col) {
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);
     else nb = [];
-    return nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
+    // sides===8 的边界检查已在 octSqNeighbors 内完成
+    if (sides !== 8)
+        nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
+    return nb;
 }
 
 function getBoardSize(sides) {
