@@ -18,6 +18,7 @@ let revealed    = {};   // key → bool
 let flagged     = {};   // key → bool
 let mineLocations = [];
 let gameOver    = false;
+let firstClick  = true; // 首次点击标记，用于安全放雷
 let mineCount   = 0;    // 当前剩余标记数（用于 UI 显示）
 let totalMines  = 0;    // 初始雷数
 let timer       = 0;
@@ -53,7 +54,7 @@ function initGame() {
     if (mineCount < 1) { mineCount = 1; totalMines = 1; }
 
     board = {}; revealed = {}; flagged = {};
-    mineLocations = []; gameOver = false; timer = 0;
+    mineLocations = []; gameOver = false; firstClick = true; timer = 0;
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
@@ -76,13 +77,7 @@ function _buildBoard() {
     const allCells = getAllCells(sides);
     const totalCells = allCells.length;
 
-    // 初始化格子数据
-    for (const [r, c] of allCells) {
-        const key = `${r},${c}`;
-        board[key] = 0; revealed[key] = false; flagged[key] = false;
-    }
-
-    // 随机放置地雷
+    // 校正雷数上限
     const maxMinesAllowed = Math.floor(totalCells * 0.8);
     if (mineCount > maxMinesAllowed) {
         mineCount = maxMinesAllowed;
@@ -90,10 +85,39 @@ function _buildBoard() {
         document.getElementById('mineCount').textContent = mineCount;
     }
 
+    // 初始化格子数据（全部为 0，雷在首次点击后放置）
+    for (const [r, c] of allCells) {
+        const key = `${r},${c}`;
+        board[key] = 0; revealed[key] = false; flagged[key] = false;
+    }
+
+    createSVGBoard(boardEl, width, height);
+}
+
+// ─── 核心逻辑 ──────────────────────────────────────────────────
+
+// 首次点击后放雷：排除首次点击格及其所有邻居
+function _placeMines(safeRow, safeCol) {
+    const allCells = getAllCells(sides);
+    const safeKeys = new Set(
+        [[ safeRow, safeCol ], ...getNeighbors(sides, safeRow, safeCol)]
+            .map(([r, c]) => `${r},${c}`)
+    );
+
+    const candidates = allCells.filter(([r, c]) => !safeKeys.has(`${r},${c}`));
+
     let placed = 0;
-    while (placed < mineCount) {
-        const idx = Math.floor(Math.random() * totalCells);
-        const [r, c] = allCells[idx];
+    // 如果候选格子不够放所有雷，尽量多放
+    const actualMines = Math.min(mineCount, candidates.length);
+    if (actualMines < mineCount) {
+        mineCount = actualMines;
+        totalMines = actualMines;
+        document.getElementById('mineCount').textContent = mineCount;
+    }
+
+    while (placed < actualMines) {
+        const idx = Math.floor(Math.random() * candidates.length);
+        const [r, c] = candidates[idx];
         const key = `${r},${c}`;
         if (board[key] !== -1) {
             board[key] = -1;
@@ -102,17 +126,13 @@ function _buildBoard() {
         }
     }
 
-    // 计算每格周围雷数
+    // 重新计算所有格子周围雷数
     for (const [r, c] of allCells) {
         const key = `${r},${c}`;
         if (board[key] !== -1)
             board[key] = _countAdjacentMines(r, c);
     }
-
-    createSVGBoard(boardEl, width, height);
 }
-
-// ─── 核心逻辑 ──────────────────────────────────────────────────
 
 function _countAdjacentMines(row, col) {
     return getNeighbors(sides, row, col)
@@ -131,6 +151,16 @@ function startTimer() {
 function handleClick(row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
+
+    // 首次点击：此时还没有地雷，先放雷再处理点击
+    if (firstClick) {
+        firstClick = false;
+        _placeMines(row, col);
+        startTimer();
+        revealCell(row, col);
+        checkWin();
+        return;
+    }
 
     // 如果点击的是已揭示的数字格子，检查是否可以快速开雷
     if (revealed[key] && board[key] > 0) {
