@@ -2,6 +2,19 @@
 // 各多边形的顶点坐标、邻居、画布尺寸计算
 // 依赖外部变量：cellSize, rows, cols（由 game.js 提供）
 
+// ─── 行列映射系数 ───────────────────────────────────────────
+// 不同多边形的实际行列数与用户设置的映射关系
+// 三角形：实际列数 = 用户设置 × 2（使棋盘更宽）
+
+function getActualRows(sides) {
+    return rows;
+}
+
+function getActualCols(sides) {
+    if (sides === 3) return cols * 2;
+    return cols;
+}
+
 // ─── 三角形（3边）────────────────────────────────────────────
 // 平铺规律：(row+col)%2==0 → 尖朝上，==1 → 尖朝下
 // 水平步进 cellSize/2，行高 cellSize*√3/2
@@ -29,15 +42,17 @@ function triNeighbors(row, col) {
     const offsets = triType(row, col) === 'up'
         ? [[-1,-1],[-1,0],[-1,1],[0,-2],[0,-1],[0,1],[0,2],[1,-2],[1,-1],[1,0],[1,1],[1,2]]
         : [[-1,-2],[-1,-1],[-1,0],[-1,1],[-1,2],[0,-2],[0,-1],[0,1],[0,2],[1,-1],[1,0],[1,1]];
+    const actualCols = getActualCols(3);
     return offsets
         .map(([dr, dc]) => [row + dr, col + dc])
-        .filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
+        .filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);
 }
 
 function triBoardSize() {
     const h = cellSize * Math.sqrt(3) / 2;
+    const actualCols = getActualCols(3);
     return {
-        width:  Math.ceil(cols * cellSize / 2 + cellSize / 2) + 4,
+        width:  Math.ceil(actualCols * cellSize / 2 + cellSize / 2) + 4,
         height: Math.ceil(rows * h) + 4,
     };
 }
@@ -238,8 +253,10 @@ function getCellCenter(sides, row, col) {
 function getAllCells(sides) {
     if (sides === 8) return octSqAllCells();
     const cells = [];
-    for (let r = 0; r < rows; r++)
-        for (let c = 0; c < cols; c++)
+    const actualRows = getActualRows(sides);
+    const actualCols = getActualCols(sides);
+    for (let r = 0; r < actualRows; r++)
+        for (let c = 0; c < actualCols; c++)
             cells.push([r, c]);
     return cells;
 }
@@ -252,8 +269,10 @@ function getNeighbors(sides, row, col) {
     else if (sides === 8) nb = octSqNeighbors(row, col);
     else nb = [];
     // sides===8 的边界检查已在 octSqNeighbors 内完成
-    if (sides !== 8)
-        nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
+    if (sides !== 8) {
+        const actualCols = getActualCols(sides);
+        nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);
+    }
     return nb;
 }
 
