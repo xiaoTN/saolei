@@ -38,6 +38,16 @@ function updateCellSize() {
     cellSize = sizeMap[sides] || 44;
 }
 
+// 游戏未开始时，滑动条变化时预览画布大小
+function previewBoardSize() {
+    if (!firstClick) return; // 游戏已开始，不预览
+
+    rows = parseInt(document.getElementById('rows').value);
+    cols = parseInt(document.getElementById('cols').value);
+
+    _buildBoard();
+}
+
 function initGame() {
     updateCellSize();
     rows = parseInt(document.getElementById('rows').value);
