@@ -58,6 +58,35 @@ h1 {
     background: #1a1a2e;
     color: #fff;
     text-align: center;
+}
+
+.sides-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.side-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.side-btn:hover {
+    border-color: #4a9eff;
+    color: #4a9eff;
+}
+
+.side-btn.selected {
+    background: #4a9eff;
+    border-color: #4a9eff;
+    color: #fff;
+}
     font-size: 14px;
 }
 

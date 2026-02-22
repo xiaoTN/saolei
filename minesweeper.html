@@ -13,12 +13,12 @@
         <div class="settings">
             <div class="setting-item">
                 <label>边数:</label>
-                <select id="sides" onchange="updateCellSize()">
-                    <option value="3">3边 (三角形)</option>
-                    <option value="4" selected>4边 (正方形)</option>
-                    <option value="6">6边 (六边形)</option>
-                    <option value="8">8+4 (八边形+正方形)</option>
-                </select>
+                <div class="sides-buttons">
+                    <button class="side-btn" data-sides="3" onclick="selectSides(3)">3</button>
+                    <button class="side-btn selected" data-sides="4" onclick="selectSides(4)">4</button>
+                    <button class="side-btn" data-sides="6" onclick="selectSides(6)">6</button>
+                    <button class="side-btn" data-sides="8" onclick="selectSides(8)">8+4</button>
+                </div>
             </div>
             <div class="setting-item slider-item">
                 <label>行数: <span id="rows-val">8</span></label>

@@ -32,11 +32,18 @@ let cellSize = 44;
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
-function updateCellSize(skipPreview = false) {
-    sides = parseInt(document.getElementById('sides').value);
+// 边数按钮选择
+function selectSides(s) {
+    sides = s;
+    // 更新按钮选中状态
+    document.querySelectorAll('.side-btn').forEach(btn => {
+        btn.classList.toggle('selected', parseInt(btn.dataset.sides) === s);
+    });
+    // 更新 cellSize
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
-    if (!skipPreview) previewBoardSize();
+    // 预览画布（游戏未开始时）
+    if (firstClick) previewBoardSize();
 }
 
 // 游戏未开始时，雷数滑动条变化时立即更新状态栏
@@ -58,7 +65,11 @@ function previewBoardSize() {
 }
 
 function initGame() {
-    updateCellSize(true);
+    // 初始化 sides 和 cellSize
+    const selectedBtn = document.querySelector('.side-btn.selected');
+    sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
+    const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
+    cellSize = sizeMap[sides] || 44;
     rows = parseInt(document.getElementById('rows').value);
     cols = parseInt(document.getElementById('cols').value);
     totalMines = parseInt(document.getElementById('mines').value);
