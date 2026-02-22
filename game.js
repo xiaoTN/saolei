@@ -88,11 +88,6 @@ function _buildBoard() {
     const totalCells = allCells.length;
     document.getElementById('cellCount').textContent = totalCells;
 
-    // 更新雷密度
-    const density = Math.round(totalMines / totalCells * 100);
-    document.getElementById('mineDensity').textContent = density + '%';
-    _updateFlagProgress();
-
     // 校正雷数上限
     const maxMinesAllowed = Math.floor(totalCells * 0.8);
     if (mineCount > maxMinesAllowed) {
@@ -164,11 +159,6 @@ function startTimer() {
     }
 }
 
-function _updateFlagProgress() {
-    const flaggedCount = totalMines - mineCount;
-    document.getElementById('flagProgress').textContent = `${flaggedCount}/${totalMines}`;
-}
-
 function handleClick(row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
@@ -238,7 +228,6 @@ function handleRightClick(e, row, col) {
         setCellState(row, col, 'flagged');
         document.getElementById('mineCount').textContent = --mineCount;
     }
-    _updateFlagProgress();
 }
 
 function revealCell(row, col) {
