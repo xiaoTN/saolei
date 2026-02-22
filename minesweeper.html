@@ -33,14 +33,15 @@
             <div class="setting-item slider-item">
                 <label>雷数: <span id="mines-val">10</span></label>
                 <input type="range" id="mines" value="10" min="1" max="60"
-                       oninput="document.getElementById('mines-val').textContent=this.value">
+                       oninput="document.getElementById('mines-val').textContent=this.value; previewMineCount()">
             </div>
             <button onclick="initGame()">开始游戏</button>
         </div>
 
         <div class="status-bar">
             <div class="status-item">格子数: <span id="cellCount">64</span></div>
-            <div class="status-item">剩余雷数: <span id="mineCount">10</span></div>
+            <div class="status-item">雷占比: <span id="mineRatio">—</span></div>
+            <div class="status-item">标记: <span id="flagProgress">0</span> / <span id="totalMinesDisplay">10</span></div>
             <div class="status-item">用时: <span id="timer">0</span>秒</div>
         </div>
 

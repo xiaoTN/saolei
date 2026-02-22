@@ -143,6 +143,8 @@ button:hover {
 .status-bar {
     display: flex;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-bottom: 15px;
     padding: 10px 15px;
     background: #1a1a2e;
@@ -158,6 +160,11 @@ button:hover {
     color: #4a9eff;
     font-weight: bold;
 }
+
+/* 雷占比颜色随难度变化 */
+#mineRatio.easy   { color: #2ed573; }
+#mineRatio.medium { color: #ffa502; }
+#mineRatio.hard   { color: #ff4757; }
 
 .game-board {
     position: relative;

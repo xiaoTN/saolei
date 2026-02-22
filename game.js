@@ -32,15 +32,24 @@ let cellSize = 44;
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
-function updateCellSize() {
+function updateCellSize(skipPreview = false) {
     sides = parseInt(document.getElementById('sides').value);
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
+    if (!skipPreview) previewBoardSize();
 }
 
-// 游戏未开始时，滑动条变化时预览画布大小
+// 游戏未开始时，雷数滑动条变化时立即更新状态栏
+function previewMineCount() {
+    if (!firstClick) return;
+    totalMines = parseInt(document.getElementById('mines').value);
+    mineCount = totalMines;
+    _updateStatusBar();
+}
+
+// 游戏未开始时，边数/行列滑动条变化时立即预览画布
 function previewBoardSize() {
-    if (!firstClick) return; // 游戏已开始，不预览
+    if (!firstClick) return; // 游戏进行中，不预览
 
     rows = parseInt(document.getElementById('rows').value);
     cols = parseInt(document.getElementById('cols').value);
@@ -49,7 +58,7 @@ function previewBoardSize() {
 }
 
 function initGame() {
-    updateCellSize();
+    updateCellSize(true);
     rows = parseInt(document.getElementById('rows').value);
     cols = parseInt(document.getElementById('cols').value);
     totalMines = parseInt(document.getElementById('mines').value);
@@ -68,7 +77,6 @@ function initGame() {
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
-    document.getElementById('mineCount').textContent = mineCount;
     document.getElementById('timer').textContent = '0';
     document.getElementById('message').className = 'message';
     document.getElementById('message').textContent = '';
@@ -93,8 +101,9 @@ function _buildBoard() {
     if (mineCount > maxMinesAllowed) {
         mineCount = maxMinesAllowed;
         totalMines = mineCount;
-        document.getElementById('mineCount').textContent = mineCount;
     }
+
+    _updateStatusBar();
 
     // 初始化格子数据（全部为 0，雷在首次点击后放置）
     for (const [r, c] of allCells) {
@@ -123,7 +132,6 @@ function _placeMines(safeRow, safeCol) {
     if (actualMines < mineCount) {
         mineCount = actualMines;
         totalMines = actualMines;
-        document.getElementById('mineCount').textContent = mineCount;
     }
 
     while (placed < actualMines) {
@@ -148,6 +156,20 @@ function _placeMines(safeRow, safeCol) {
 function _countAdjacentMines(row, col) {
     return getNeighbors(sides, row, col)
         .filter(([r, c]) => board[`${r},${c}`] === -1).length;
+}
+
+function _updateStatusBar() {
+    const allCells = getAllCells(sides);
+    const totalCells = allCells.length;
+    const ratioNum = totalCells > 0 ? totalMines / totalCells * 100 : 0;
+    const flaggedCount = totalMines - mineCount;
+
+    const ratioEl = document.getElementById('mineRatio');
+    ratioEl.textContent = ratioNum.toFixed(1) + '%';
+    ratioEl.className = ratioNum < 15 ? 'easy' : ratioNum < 25 ? 'medium' : 'hard';
+
+    document.getElementById('flagProgress').textContent = flaggedCount;
+    document.getElementById('totalMinesDisplay').textContent = totalMines;
 }
 
 function startTimer() {
@@ -222,12 +244,13 @@ function handleRightClick(e, row, col) {
     if (flagged[key]) {
         flagged[key] = false;
         setCellState(row, col, 'normal');
-        document.getElementById('mineCount').textContent = ++mineCount;
+        mineCount++;
     } else {
         flagged[key] = true;
         setCellState(row, col, 'flagged');
-        document.getElementById('mineCount').textContent = --mineCount;
+        mineCount--;
     }
+    _updateStatusBar();
 }
 
 function revealCell(row, col) {
