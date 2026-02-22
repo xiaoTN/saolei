@@ -201,6 +201,31 @@ button:hover {
     width: fit-content;
 }
 
+.game-area {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.side-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 20px;
+}
+
+.sides-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sides-vertical .side-btn {
+    width: 44px;
+    height: 44px;
+}
+
 .message {
     text-align: center;
     margin-top: 20px;
