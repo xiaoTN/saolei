@@ -23,15 +23,15 @@ function triVertices(row, col) {
 }
 
 function triNeighbors(row, col) {
-    const nb = [];
-    if (col > 0) nb.push([row, col - 1]);
-    if (col < cols - 1) nb.push([row, col + 1]);
-    if (triType(row, col) === 'up') {
-        if (row < rows - 1) nb.push([row + 1, col]);
-    } else {
-        if (row > 0) nb.push([row - 1, col]);
-    }
-    return nb;
+    // 顶点邻居（共享至少一个顶点即计入，经数学验证）
+    // up  偏移：[-1,-1],[-1,0],[-1,1],[0,-2],[0,-1],[0,1],[0,2],[1,-2],[1,-1],[1,0],[1,1],[1,2]
+    // down偏移：[-1,-2],[-1,-1],[-1,0],[-1,1],[-1,2],[0,-2],[0,-1],[0,1],[0,2],[1,-1],[1,0],[1,1]
+    const offsets = triType(row, col) === 'up'
+        ? [[-1,-1],[-1,0],[-1,1],[0,-2],[0,-1],[0,1],[0,2],[1,-2],[1,-1],[1,0],[1,1],[1,2]]
+        : [[-1,-2],[-1,-1],[-1,0],[-1,1],[-1,2],[0,-2],[0,-1],[0,1],[0,2],[1,-1],[1,0],[1,1]];
+    return offsets
+        .map(([dr, dc]) => [row + dr, col + dc])
+        .filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < cols);
 }
 
 function triBoardSize() {
