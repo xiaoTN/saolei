@@ -86,6 +86,7 @@ function _buildBoard() {
 
     const allCells = getAllCells(sides);
     const totalCells = allCells.length;
+    document.getElementById('cellCount').textContent = totalCells;
 
     // 校正雷数上限
     const maxMinesAllowed = Math.floor(totalCells * 0.8);
