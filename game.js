@@ -206,7 +206,7 @@ function startTimer() {
     }
 }
 
-// 单击：标记 / 取消标记旗子（首次点击例外，直接打开格子）
+// 单击：标记 / 取消标记旗子（首次点击例外，直接打开格子；已揭示数字格触发快速开雷）
 function handleClick(row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
@@ -214,6 +214,34 @@ function handleClick(row, col) {
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
         _revealCell_firstClick(row, col);
+        return;
+    }
+
+    // 已揭示的数字格：快速开雷
+    if (revealed[key] && board[key] > 0) {
+        const neighbors = getNeighbors(sides, row, col);
+        const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
+        if (flaggedCount === board[key]) {
+            startTimer();
+            for (const [r, c] of neighbors) {
+                const nKey = `${r},${c}`;
+                if (!revealed[nKey] && !flagged[nKey]) {
+                    if (board[nKey] === -1) {
+                        mineLocations.forEach(([mr, mc]) => {
+                            if (!flagged[`${mr},${mc}`]) setCellState(mr, mc, 'mine');
+                        });
+                        gameOver = true;
+                        clearInterval(timerInterval);
+                        _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+                        return;
+                    } else {
+                        revealCell(r, c);
+                    }
+                }
+            }
+            if (gameOver) return;
+            checkWin();
+        }
         return;
     }
 

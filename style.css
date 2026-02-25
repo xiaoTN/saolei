@@ -227,6 +227,8 @@ button:disabled:hover {
 
 .game-board svg {
     touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .game-area {
