@@ -27,26 +27,88 @@ let touchHoldTimers = {};
 let touchLongPressFired = {};
 
 // 由 HTML 控件读取/设置
-let rows     = 8;
-let cols     = 8;
+let rows     = 10;
+let cols     = 10;
 let sides    = 4;
 let cellSize = 44;
 const SUPPORTED_SIDES = new Set([3, 4, 6, 8]);
+
+let currentDifficulty = 'medium';
+
+// 各难度在不同边数下的预设 [rows, cols, mines]
+const DIFFICULTY_PRESETS = {
+    3: {
+        easy:   [8,  8,  8],
+        medium: [12, 12, 20],
+        hard:   [16, 16, 50],
+    },
+    4: {
+        easy:   [8,  8,  10],
+        medium: [10, 10, 20],
+        hard:   [16, 16, 60],
+    },
+    6: {
+        easy:   [6,  6,  8],
+        medium: [9,  9,  18],
+        hard:   [12, 12, 40],
+    },
+    8: {
+        easy:   [5,  5,  8],
+        medium: [7,  7,  18],
+        hard:   [10, 10, 45],
+    },
+};
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
 // 边数按钮选择
 function selectSides(s) {
     sides = SUPPORTED_SIDES.has(s) ? s : 4;
-    // 更新按钮选中状态
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
-    // 更新 cellSize
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
-    // 预览画布（游戏未开始时）
-    if (firstClick) previewBoardSize();
+    if (firstClick) {
+        // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
+        if (currentDifficulty !== 'custom') _applyDifficultyPreset(currentDifficulty);
+        else previewBoardSize();
+    }
+}
+
+// 难度选择
+function selectDifficulty(diff) {
+    currentDifficulty = diff;
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.diff === diff);
+    });
+    const customEl = document.getElementById('customSettings');
+    if (diff === 'custom') {
+        customEl.style.display = 'flex';
+        if (firstClick) previewBoardSize();
+    } else {
+        customEl.style.display = 'none';
+        if (firstClick) _applyDifficultyPreset(diff);
+    }
+}
+
+// 将难度预设同步到滑动条并更新画布预览
+function _applyDifficultyPreset(diff) {
+    const preset = (DIFFICULTY_PRESETS[sides] || DIFFICULTY_PRESETS[4])[diff];
+    if (!preset) return;
+    const [r, c, m] = preset;
+
+    rows = r; cols = c;
+    document.getElementById('rows').value = r;
+    document.getElementById('rows-val').textContent = r;
+    document.getElementById('cols').value = c;
+    document.getElementById('cols-val').textContent = c;
+
+    totalMines = m; mineCount = m;
+    document.getElementById('mines').value = m;
+    document.getElementById('mines-val').textContent = m;
+
+    _buildBoard();
 }
 
 // 游戏未开始时，雷数滑动条变化时立即更新状态栏
@@ -68,16 +130,25 @@ function previewBoardSize() {
 }
 
 function initGame() {
-    // 初始化 sides 和 cellSize
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
-    rows = parseInt(document.getElementById('rows').value);
-    cols = parseInt(document.getElementById('cols').value);
-    totalMines = parseInt(document.getElementById('mines').value);
-    mineCount = totalMines;
+
+    // 非自定义模式：直接从预设读取，不依赖滑动条当前值
+    if (currentDifficulty !== 'custom') {
+        const preset = (DIFFICULTY_PRESETS[sides] || DIFFICULTY_PRESETS[4])[currentDifficulty];
+        if (preset) {
+            rows = preset[0]; cols = preset[1];
+            totalMines = preset[2]; mineCount = preset[2];
+        }
+    } else {
+        rows = parseInt(document.getElementById('rows').value);
+        cols = parseInt(document.getElementById('cols').value);
+        totalMines = parseInt(document.getElementById('mines').value);
+        mineCount = totalMines;
+    }
 
     const maxMines = Math.floor(rows * cols * 0.8);
     if (mineCount > maxMines) {
@@ -410,4 +481,6 @@ function _setSettingsLocked(locked) {
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
+// 初始化时应用默认难度（触发预设同步和画布预览）
+selectDifficulty('medium');
 initGame();

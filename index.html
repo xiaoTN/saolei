@@ -11,20 +11,28 @@
         <h1>💣 多边形扫雷</h1>
 
         <div class="settings">
-            <div class="setting-item slider-item">
-                <label>行数: <span id="rows-val">8</span></label>
-                <input type="range" id="rows" value="8" min="3" max="20"
-                       oninput="document.getElementById('rows-val').textContent=this.value; previewBoardSize()">
+            <div class="difficulty-row">
+                <button class="diff-btn" data-diff="easy"   onclick="selectDifficulty('easy')">简单</button>
+                <button class="diff-btn selected" data-diff="medium" onclick="selectDifficulty('medium')">中等</button>
+                <button class="diff-btn" data-diff="hard"   onclick="selectDifficulty('hard')">困难</button>
+                <button class="diff-btn" data-diff="custom" onclick="selectDifficulty('custom')">自定义</button>
             </div>
-            <div class="setting-item slider-item">
-                <label>列数: <span id="cols-val">8</span></label>
-                <input type="range" id="cols" value="8" min="3" max="20"
-                       oninput="document.getElementById('cols-val').textContent=this.value; previewBoardSize()">
-            </div>
-            <div class="setting-item slider-item">
-                <label>雷数: <span id="mines-val">10</span></label>
-                <input type="range" id="mines" value="10" min="1" max="60"
-                       oninput="document.getElementById('mines-val').textContent=this.value; previewMineCount()">
+            <div class="custom-settings" id="customSettings" style="display:none">
+                <div class="setting-item slider-item">
+                    <label>行数: <span id="rows-val">10</span></label>
+                    <input type="range" id="rows" value="10" min="3" max="20"
+                           oninput="document.getElementById('rows-val').textContent=this.value; previewBoardSize()">
+                </div>
+                <div class="setting-item slider-item">
+                    <label>列数: <span id="cols-val">10</span></label>
+                    <input type="range" id="cols" value="10" min="3" max="20"
+                           oninput="document.getElementById('cols-val').textContent=this.value; previewBoardSize()">
+                </div>
+                <div class="setting-item slider-item">
+                    <label>雷数: <span id="mines-val">20</span></label>
+                    <input type="range" id="mines" value="20" min="1" max="200"
+                           oninput="document.getElementById('mines-val').textContent=this.value; previewMineCount()">
+                </div>
             </div>
             <button onclick="initGame()">开始游戏</button>
         </div>
@@ -50,7 +58,7 @@
 
         <div class="message" id="message"></div>
 
-        <div class="tips">左键点击揭示，右键标记地雷（触摸设备长按可标记）</div>
+        <div class="tips">单击标记地雷 🚩，右键 / 长按打开格子</div>
     </div>
 
     <!-- 加载顺序：geometry → renderer → game -->
