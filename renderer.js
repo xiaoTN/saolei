@@ -80,12 +80,12 @@ function _buildCell(row, col) {
     g.appendChild(text);
 
     g.addEventListener('mouseenter', () => {
-        if (!revealed[key] && !flagged[key] && !gameOver)
-            poly.setAttribute('fill', '#4a4a7c');
+        if (!revealed[key] && !gameOver)
+            poly.setAttribute('fill', flagged[key] ? '#3a1a4c' : '#4a4a7c');
     });
     g.addEventListener('mouseleave', () => {
-        if (!revealed[key] && !flagged[key])
-            poly.setAttribute('fill', 'url(#cell-grad)');
+        if (!revealed[key])
+            poly.setAttribute('fill', flagged[key] ? '#2a1a3c' : 'url(#cell-grad)');
     });
     g.addEventListener('click', () => handleClick(row, col));
     g.addEventListener('contextmenu', e => handleRightClick(e, row, col));

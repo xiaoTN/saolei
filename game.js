@@ -206,18 +206,43 @@ function startTimer() {
     }
 }
 
+// 单击：标记 / 取消标记旗子（首次点击例外，直接打开格子）
 function handleClick(row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
 
-    // 首次点击：此时还没有地雷，先放雷再处理点击
+    // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
-        firstClick = false;
-        _setSettingsLocked(true);
-        _placeMines(row, col);
-        startTimer();
-        revealCell(row, col);
-        checkWin();
+        _revealCell_firstClick(row, col);
+        return;
+    }
+
+    if (revealed[key]) return;
+
+    startTimer();
+
+    if (flagged[key]) {
+        flagged[key] = false;
+        setCellState(row, col, 'normal');
+        mineCount++;
+    } else {
+        if (mineCount <= 0) return;
+        flagged[key] = true;
+        setCellState(row, col, 'flagged');
+        mineCount--;
+    }
+    _updateStatusBar();
+}
+
+// 右键单击 / 长按：打开格子（reveal）
+function handleRightClick(e, row, col) {
+    e.preventDefault();
+    const key = `${row},${col}`;
+    if (gameOver) return;
+
+    // 首次点击：直接打开格子
+    if (firstClick) {
+        _revealCell_firstClick(row, col);
         return;
     }
 
@@ -225,7 +250,6 @@ function handleClick(row, col) {
     if (revealed[key] && board[key] > 0) {
         const neighbors = getNeighbors(sides, row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
-        // 周围已标记的雷数等于数字时，自动点开周围格子
         if (flaggedCount === board[key]) {
             startTimer();
             for (const [r, c] of neighbors) {
@@ -248,6 +272,7 @@ function handleClick(row, col) {
             checkWin();
             return;
         }
+        return;
     }
 
     if (revealed[key] || flagged[key]) return;
@@ -267,23 +292,14 @@ function handleClick(row, col) {
     checkWin();
 }
 
-function handleRightClick(e, row, col) {
-    e.preventDefault();
-    const key = `${row},${col}`;
-    if (gameOver || revealed[key]) return;
+// 首次点击专用：安全放雷后揭开格子
+function _revealCell_firstClick(row, col) {
+    firstClick = false;
+    _setSettingsLocked(true);
+    _placeMines(row, col);
     startTimer();
-
-    if (flagged[key]) {
-        flagged[key] = false;
-        setCellState(row, col, 'normal');
-        mineCount++;
-    } else {
-        if (mineCount <= 0) return;
-        flagged[key] = true;
-        setCellState(row, col, 'flagged');
-        mineCount--;
-    }
-    _updateStatusBar();
+    revealCell(row, col);
+    checkWin();
 }
 
 function handleTouchStart(e, row, col) {
@@ -291,6 +307,7 @@ function handleTouchStart(e, row, col) {
     const key = `${row},${col}`;
     touchLongPressFired[key] = false;
     clearTimeout(touchHoldTimers[key]);
+    // 长按：打开格子（reveal）
     touchHoldTimers[key] = setTimeout(() => {
         touchLongPressFired[key] = true;
         handleRightClick({ preventDefault() {} }, row, col);
@@ -306,6 +323,7 @@ function handleTouchEnd(e, row, col) {
         delete touchLongPressFired[key];
         return;
     }
+    // 短按：标记旗子（或首次点击打开格子）
     handleClick(row, col);
 }
 
