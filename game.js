@@ -312,6 +312,7 @@ function handleClick(row, col) {
                         });
                         gameOver = true;
                         clearInterval(timerInterval);
+                        vibrate([100, 50, 100]);
                         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
                         return;
                     } else {
@@ -320,6 +321,7 @@ function handleClick(row, col) {
                 }
             }
             if (gameOver) return;
+            vibrate(30);
             checkWin();
         }
         return;
@@ -339,6 +341,7 @@ function handleClick(row, col) {
         setCellState(row, col, 'flagged');
         mineCount--;
     }
+    vibrate(15);
     _updateStatusBar();
 }
 
@@ -407,6 +410,7 @@ function _revealCell_firstClick(row, col) {
     _setSettingsLocked(true);
     _placeMines(row, col);
     startTimer();
+    vibrate(30);
     revealCell(row, col);
     checkWin();
 }
