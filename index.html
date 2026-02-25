@@ -11,6 +11,12 @@
         <h1>💣 多边形扫雷</h1>
 
         <div class="settings">
+            <div class="shape-row">
+                <button class="side-btn" data-sides="3" onclick="selectSides(3)">3边</button>
+                <button class="side-btn selected" data-sides="4" onclick="selectSides(4)">4边</button>
+                <button class="side-btn" data-sides="6" onclick="selectSides(6)">6边</button>
+                <button class="side-btn" data-sides="8" onclick="selectSides(8)">8+4</button>
+            </div>
             <div class="difficulty-row">
                 <button class="diff-btn" data-diff="easy"   onclick="selectDifficulty('easy')">简单</button>
                 <button class="diff-btn selected" data-diff="medium" onclick="selectDifficulty('medium')">中等</button>
@@ -45,14 +51,6 @@
         </div>
 
         <div class="game-area">
-            <div class="side-panel">
-                <div class="sides-vertical">
-                    <button class="side-btn" data-sides="3" onclick="selectSides(3)">3</button>
-                    <button class="side-btn selected" data-sides="4" onclick="selectSides(4)">4</button>
-                    <button class="side-btn" data-sides="6" onclick="selectSides(6)">6</button>
-                    <button class="side-btn" data-sides="8" onclick="selectSides(8)">8+4</button>
-                </div>
-            </div>
             <div class="board-viewport" id="boardViewport">
                 <div class="game-board" id="board"></div>
             </div>
