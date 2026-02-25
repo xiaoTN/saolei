@@ -264,17 +264,31 @@ button:disabled:hover {
 #mineRatio.medium { color: #ffa502; }
 #mineRatio.hard   { color: #ff4757; }
 
+.board-viewport {
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    max-height: 65vh;
+    cursor: grab;
+    border-radius: 8px;
+}
+
+.board-viewport.panning {
+    cursor: grabbing;
+}
+
 .game-board {
     position: relative;
-    margin: 20px auto;
     width: fit-content;
-    max-width: 100%;
+    will-change: transform;
 }
 
 .game-board svg {
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
+    display: block;
 }
 
 .game-area {

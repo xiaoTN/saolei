@@ -179,6 +179,7 @@ function initGame() {
 }
 
 function _buildBoard() {
+    if (window._panReset) window._panReset();
     const boardEl = document.getElementById('board');
     boardEl.innerHTML = '';
 
@@ -279,6 +280,7 @@ function startTimer() {
 
 // 单击：标记 / 取消标记旗子（首次点击例外，直接打开格子；已揭示数字格触发快速开雷）
 function handleClick(row, col) {
+    if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
 
@@ -336,6 +338,7 @@ function handleClick(row, col) {
 // 右键单击 / 长按：打开格子（reveal）
 function handleRightClick(e, row, col) {
     e.preventDefault();
+    if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
 
@@ -478,6 +481,131 @@ function _setSettingsLocked(locked) {
         btn.classList.toggle('disabled', locked);
     });
 }
+
+// ─── 棋盘平移 ──────────────────────────────────────────────────
+
+// 拖动超过此阈值才进入平移模式，否则视为点击
+let _isPanning = false;
+
+(function initPan() {
+    const DRAG_THRESHOLD = 6;
+
+    let dragging = false;
+    let startX = 0, startY = 0;
+    let panX = 0, panY = 0;
+    let lastPanX = 0, lastPanY = 0;
+
+    function getViewport() { return document.getElementById('boardViewport'); }
+    function getBoard()    { return document.getElementById('board'); }
+
+    function clampPan(vp, board, nx, ny) {
+        const vpW = vp.clientWidth,  vpH = vp.clientHeight;
+        const bW  = board.offsetWidth, bH = board.offsetHeight;
+        const minX = bW > vpW ? -(bW - vpW) : 0;
+        const minY = bH > vpH ? -(bH - vpH) : 0;
+        const maxX = bW > vpW ? 0 : vpW - bW;
+        const maxY = bH > vpH ? 0 : vpH - bH;
+        return [
+            Math.min(maxX, Math.max(minX, nx)),
+            Math.min(maxY, Math.max(minY, ny)),
+        ];
+    }
+
+    function applyTransform() {
+        const board = getBoard();
+        if (board) board.style.transform = `translate(${panX}px, ${panY}px)`;
+    }
+
+    // ── 鼠标（桌面端）──
+    // mousedown 在视口捕获起点，move/up 挂在 document 确保拖出边界也能跟踪
+    function onMouseDown(e) {
+        if (e.button !== 0) return;
+        dragging = true;
+        _isPanning = false;
+        startX = e.clientX; startY = e.clientY;
+        lastPanX = panX; lastPanY = panY;
+    }
+
+    function onMouseMove(e) {
+        if (!dragging) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        _isPanning = true;
+        getViewport()?.classList.add('panning');
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+        [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
+        applyTransform();
+    }
+
+    function onMouseUp() {
+        if (!dragging) return;
+        dragging = false;
+        getViewport()?.classList.remove('panning');
+        if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
+        else _isPanning = false;
+    }
+
+    // ── 触摸（移动端）──
+    // 触摸事件与格子上的 touchstart/touchend 游戏逻辑共存：
+    // 视口上的 touchstart 仅记录起点，不阻止冒泡；
+    // touchmove 超过阈值后才进入平移模式并 preventDefault 阻止页面滚动；
+    // 平移状态下 touchend 会被格子的 handleTouchEnd 检测到 _isPanning 而忽略。
+    function onTouchStart(e) {
+        if (e.touches.length !== 1) return;
+        dragging = true;
+        _isPanning = false;
+        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+        lastPanX = panX; lastPanY = panY;
+    }
+
+    function onTouchMove(e) {
+        if (!dragging || e.touches.length !== 1) return;
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+        if (!_isPanning) {
+            // 刚越过阈值：取消所有长按计时器，防止误触发开格子
+            Object.keys(touchHoldTimers).forEach(k => {
+                clearTimeout(touchHoldTimers[k]);
+                delete touchHoldTimers[k];
+                delete touchLongPressFired[k];
+            });
+        }
+        _isPanning = true;
+        e.preventDefault(); // 阻止页面滚动
+        getViewport()?.classList.add('panning');
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+        [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
+        applyTransform();
+    }
+
+    function onTouchEnd() {
+        if (!dragging) return;
+        dragging = false;
+        getViewport()?.classList.remove('panning');
+        if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
+        else _isPanning = false;
+    }
+
+    // 脚本在 body 末尾，DOM 已就绪
+    const vp = getViewport();
+    if (vp) {
+        vp.addEventListener('mousedown',   onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup',   onMouseUp);
+
+        // passive:false 让 touchmove 能调用 preventDefault
+        vp.addEventListener('touchstart', onTouchStart, { passive: true });
+        vp.addEventListener('touchmove',  onTouchMove,  { passive: false });
+        vp.addEventListener('touchend',   onTouchEnd,   { passive: true });
+        vp.addEventListener('touchcancel',onTouchEnd,   { passive: true });
+    }
+
+    window._panReset = () => { panX = 0; panY = 0; applyTransform(); };
+})();
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
