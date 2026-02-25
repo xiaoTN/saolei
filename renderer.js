@@ -50,7 +50,7 @@ function _buildCell(row, col) {
     const [cx, cy] = getCellCenter(sides, row, col);
     const pts = verts.map(v => `${v[0].toFixed(2)},${v[1].toFixed(2)}`).join(' ');
 
-    // sides===8 扩展网格中，row(=gr) 为奇数时是小正方形
+    // 扩展网格中的辅助连接格（8+4 的小正方形）使用更小字号
     const isSmallCell = (sides === 8 && row % 2 === 1);
     const fontSize = isSmallCell ? 8 : (sides === 3 ? 11 : 13);
 
@@ -89,6 +89,9 @@ function _buildCell(row, col) {
     });
     g.addEventListener('click', () => handleClick(row, col));
     g.addEventListener('contextmenu', e => handleRightClick(e, row, col));
+    g.addEventListener('touchstart', e => handleTouchStart(e, row, col), { passive: false });
+    g.addEventListener('touchend', e => handleTouchEnd(e, row, col), { passive: false });
+    g.addEventListener('touchcancel', () => handleTouchCancel(row, col));
 
     return g;
 }

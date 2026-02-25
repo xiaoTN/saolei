@@ -15,6 +15,11 @@ function getActualCols(sides) {
     return cols;
 }
 
+function _mixCenter(gr, gc) {
+    const step = cellSize / 2;
+    return [gc * step + step, gr * step + step];
+}
+
 // ─── 三角形（3边）────────────────────────────────────────────
 // 平铺规律：(row+col)%2==0 → 尖朝上，==1 → 尖朝下
 // 水平步进 cellSize/2，行高 cellSize*√3/2
@@ -147,8 +152,7 @@ function hexBoardSize() {
 // 所有格子通过 octSqAllCells() 枚举
 
 function _octSqCenter(gr, gc) {
-    const step = cellSize / 2;
-    return [gc * step + step, gr * step + step];
+    return _mixCenter(gr, gc);
 }
 
 function _octVertices(cx, cy) {
@@ -268,7 +272,7 @@ function getNeighbors(sides, row, col) {
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);
     else nb = [];
-    // sides===8 的边界检查已在 octSqNeighbors 内完成
+    // sides===8 的边界检查已在各自函数内完成
     if (sides !== 8) {
         const actualCols = getActualCols(sides);
         nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);

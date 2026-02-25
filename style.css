@@ -21,6 +21,7 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     max-width: 700px;
     width: 100%;
+    overflow-x: auto;
 }
 
 h1 {
@@ -66,13 +67,18 @@ h1 {
 }
 
 .side-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
+    padding: 0;
     border: 1px solid #333;
     border-radius: 6px;
     background: #1a1a2e;
     color: #888;
     font-size: 14px;
+    line-height: 1;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -87,7 +93,13 @@ h1 {
     border-color: #4a9eff;
     color: #fff;
 }
-    font-size: 14px;
+
+.side-btn:disabled,
+.side-btn.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .setting-item select:focus {
@@ -169,6 +181,17 @@ button:hover {
     box-shadow: 0 4px 15px rgba(74, 158, 255, 0.4);
 }
 
+button:disabled,
+input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+button:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 .status-bar {
     display: flex;
     justify-content: space-between;
@@ -199,6 +222,11 @@ button:hover {
     position: relative;
     margin: 20px auto;
     width: fit-content;
+    max-width: 100%;
+}
+
+.game-board svg {
+    touch-action: manipulation;
 }
 
 .game-area {
@@ -222,8 +250,14 @@ button:hover {
 }
 
 .sides-vertical .side-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 44px;
     height: 44px;
+    padding: 0;
+    line-height: 1;
+    text-align: center;
 }
 
 .message {

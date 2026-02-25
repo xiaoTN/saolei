@@ -23,21 +23,24 @@ let mineCount   = 0;    // 当前剩余标记数（用于 UI 显示）
 let totalMines  = 0;    // 初始雷数
 let timer       = 0;
 let timerInterval = null;
+let touchHoldTimers = {};
+let touchLongPressFired = {};
 
 // 由 HTML 控件读取/设置
 let rows     = 8;
 let cols     = 8;
 let sides    = 4;
 let cellSize = 44;
+const SUPPORTED_SIDES = new Set([3, 4, 6, 8]);
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
 // 边数按钮选择
 function selectSides(s) {
-    sides = s;
+    sides = SUPPORTED_SIDES.has(s) ? s : 4;
     // 更新按钮选中状态
     document.querySelectorAll('.side-btn').forEach(btn => {
-        btn.classList.toggle('selected', parseInt(btn.dataset.sides) === s);
+        btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
     // 更新 cellSize
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
@@ -68,6 +71,7 @@ function initGame() {
     // 初始化 sides 和 cellSize
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
+    if (!SUPPORTED_SIDES.has(sides)) sides = 4;
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
     rows = parseInt(document.getElementById('rows').value);
@@ -81,16 +85,24 @@ function initGame() {
         totalMines = mineCount;
         document.getElementById('mines').value = mineCount;
     }
-    if (mineCount < 1) { mineCount = 1; totalMines = 1; }
+    if (mineCount < 1) {
+        mineCount = 1;
+        totalMines = 1;
+        document.getElementById('mines').value = 1;
+    }
+    document.getElementById('mines-val').textContent = String(mineCount);
 
     board = {}; revealed = {}; flagged = {};
     mineLocations = []; gameOver = false; firstClick = true; timer = 0;
+    touchHoldTimers = {};
+    touchLongPressFired = {};
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
     document.getElementById('timer').textContent = '0';
     document.getElementById('message').className = 'message';
     document.getElementById('message').textContent = '';
+    _setSettingsLocked(false);
 
     _buildBoard();
 }
@@ -112,6 +124,8 @@ function _buildBoard() {
     if (mineCount > maxMinesAllowed) {
         mineCount = maxMinesAllowed;
         totalMines = mineCount;
+        document.getElementById('mines').value = mineCount;
+        document.getElementById('mines-val').textContent = String(mineCount);
     }
 
     _updateStatusBar();
@@ -199,6 +213,7 @@ function handleClick(row, col) {
     // 首次点击：此时还没有地雷，先放雷再处理点击
     if (firstClick) {
         firstClick = false;
+        _setSettingsLocked(true);
         _placeMines(row, col);
         startTimer();
         revealCell(row, col);
@@ -213,19 +228,23 @@ function handleClick(row, col) {
         // 周围已标记的雷数等于数字时，自动点开周围格子
         if (flaggedCount === board[key]) {
             startTimer();
-            neighbors.forEach(([r, c]) => {
+            for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
                 if (!revealed[nKey] && !flagged[nKey]) {
                     if (board[nKey] === -1) {
-                        mineLocations.forEach(([mr, mc]) => setCellState(mr, mc, 'mine'));
+                        mineLocations.forEach(([mr, mc]) => {
+                            if (!flagged[`${mr},${mc}`]) setCellState(mr, mc, 'mine');
+                        });
                         gameOver = true;
                         clearInterval(timerInterval);
                         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+                        return;
                     } else {
                         revealCell(r, c);
                     }
                 }
-            });
+            }
+            if (gameOver) return;
             checkWin();
             return;
         }
@@ -235,7 +254,9 @@ function handleClick(row, col) {
     startTimer();
 
     if (board[key] === -1) {
-        mineLocations.forEach(([r, c]) => setCellState(r, c, 'mine'));
+        mineLocations.forEach(([r, c]) => {
+            if (!flagged[`${r},${c}`]) setCellState(r, c, 'mine');
+        });
         gameOver = true;
         clearInterval(timerInterval);
         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
@@ -257,11 +278,42 @@ function handleRightClick(e, row, col) {
         setCellState(row, col, 'normal');
         mineCount++;
     } else {
+        if (mineCount <= 0) return;
         flagged[key] = true;
         setCellState(row, col, 'flagged');
         mineCount--;
     }
     _updateStatusBar();
+}
+
+function handleTouchStart(e, row, col) {
+    e.preventDefault();
+    const key = `${row},${col}`;
+    touchLongPressFired[key] = false;
+    clearTimeout(touchHoldTimers[key]);
+    touchHoldTimers[key] = setTimeout(() => {
+        touchLongPressFired[key] = true;
+        handleRightClick({ preventDefault() {} }, row, col);
+    }, 450);
+}
+
+function handleTouchEnd(e, row, col) {
+    e.preventDefault();
+    const key = `${row},${col}`;
+    clearTimeout(touchHoldTimers[key]);
+    delete touchHoldTimers[key];
+    if (touchLongPressFired[key]) {
+        delete touchLongPressFired[key];
+        return;
+    }
+    handleClick(row, col);
+}
+
+function handleTouchCancel(row, col) {
+    const key = `${row},${col}`;
+    clearTimeout(touchHoldTimers[key]);
+    delete touchHoldTimers[key];
+    delete touchLongPressFired[key];
 }
 
 function revealCell(row, col) {
@@ -298,6 +350,16 @@ function _showMessage(text, type) {
     const el = document.getElementById('message');
     el.textContent = text;
     el.className = `message ${type}`;
+}
+
+function _setSettingsLocked(locked) {
+    ['rows', 'cols', 'mines'].forEach(id => {
+        document.getElementById(id).disabled = locked;
+    });
+    document.querySelectorAll('.side-btn').forEach(btn => {
+        btn.disabled = locked;
+        btn.classList.toggle('disabled', locked);
+    });
 }
 
 // ─── 入口 ─────────────────────────────────────────────────────
