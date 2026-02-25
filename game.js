@@ -3,6 +3,12 @@
 // 依赖：geometry.js（getNeighbors, getBoardSize, getCellVertices, getCellCenter）
 //       renderer.js（createSVGBoard, setCellState）
 
+// ─── 工具函数 ──────────────────────────────────────────────────
+
+function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
 // ─── 常量 ─────────────────────────────────────────────────────
 
 const NUM_COLORS = {
