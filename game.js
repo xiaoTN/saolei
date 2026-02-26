@@ -29,6 +29,8 @@ let mineCount   = 0;    // 当前剩余标记数（用于 UI 显示）
 let totalMines  = 0;    // 初始雷数
 let revealedCount = 0;  // 已揭示格子数（用于 O(1) 胜利判断）
 let totalCellsCount = 0;// 当前棋盘总格子数
+let allCellsCache = []; // 当前棋盘有效格子列表缓存
+let neighborsCache = {}; // key -> 邻居列表缓存
 let timer       = 0;
 let timerInterval = null;
 let touchHoldTimers = {};
@@ -205,6 +207,12 @@ function _buildBoard() {
     boardEl.style.height = height + 'px';
 
     const allCells = getAllCells(sides);
+    allCellsCache = allCells;
+    neighborsCache = Object.create(null);
+    for (const [r, c] of allCells) {
+        neighborsCache[`${r},${c}`] = getNeighbors(sides, r, c);
+    }
+
     const totalCells = allCells.length;
     totalCellsCount = totalCells;
     document.getElementById('cellCount').textContent = totalCells;
@@ -233,9 +241,9 @@ function _buildBoard() {
 
 // 首次点击后放雷：排除首次点击格及其所有邻居
 function _placeMines(safeRow, safeCol) {
-    const allCells = getAllCells(sides);
+    const allCells = allCellsCache;
     const safeKeys = new Set(
-        [[ safeRow, safeCol ], ...getNeighbors(sides, safeRow, safeCol)]
+        [[ safeRow, safeCol ], ..._getNeighborsCached(safeRow, safeCol)]
             .map(([r, c]) => `${r},${c}`)
     );
 
@@ -269,13 +277,12 @@ function _placeMines(safeRow, safeCol) {
 }
 
 function _countAdjacentMines(row, col) {
-    return getNeighbors(sides, row, col)
+    return _getNeighborsCached(row, col)
         .filter(([r, c]) => board[`${r},${c}`] === -1).length;
 }
 
 function _updateStatusBar() {
-    const allCells = getAllCells(sides);
-    const totalCells = allCells.length;
+    const totalCells = totalCellsCount;
     const ratioNum = totalCells > 0 ? totalMines / totalCells * 100 : 0;
     const flaggedCount = totalMines - mineCount;
 
@@ -310,7 +317,7 @@ function handleClick(row, col) {
 
     // 已揭示的数字格：快速开雷
     if (revealed[key] && board[key] > 0) {
-        const neighbors = getNeighbors(sides, row, col);
+        const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
             startTimer();
@@ -371,7 +378,7 @@ function handleRightClick(e, row, col) {
 
     // 如果点击的是已揭示的数字格子，检查是否可以快速开雷
     if (revealed[key] && board[key] > 0) {
-        const neighbors = getNeighbors(sides, row, col);
+        const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
             startTimer();
@@ -468,8 +475,12 @@ function revealCell(row, col) {
     setCellState(row, col, 'revealed', board[key]);
 
     if (board[key] === 0) {
-        getNeighbors(sides, row, col).forEach(([r, c]) => revealCell(r, c));
+        _getNeighborsCached(row, col).forEach(([r, c]) => revealCell(r, c));
     }
+}
+
+function _getNeighborsCached(row, col) {
+    return neighborsCache[`${row},${col}`] || [];
 }
 
 function checkWin() {
