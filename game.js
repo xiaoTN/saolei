@@ -235,6 +235,7 @@ function _buildBoard() {
     }
 
     createSVGBoard(boardEl, width, height, allCells);
+    if (window._panCenter) window._panCenter();
 }
 
 // ─── 核心逻辑 ──────────────────────────────────────────────────
@@ -701,7 +702,17 @@ let _isPanning = false;
         vp.addEventListener('wheel',      onWheel,      { passive: false });
     }
 
+    function centerPan() {
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+        const targetX = (vp.clientWidth - board.offsetWidth) / 2;
+        const targetY = (vp.clientHeight - board.offsetHeight) / 2;
+        [panX, panY] = clampPan(vp, board, targetX, targetY);
+        applyTransform();
+    }
+
     window._panReset = () => { panX = 0; panY = 0; applyTransform(); };
+    window._panCenter = centerPan;
 })();
 
 // ─── 入口 ─────────────────────────────────────────────────────

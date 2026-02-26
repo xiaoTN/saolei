@@ -134,7 +134,8 @@ function _attachSVGDelegatedEvents(svg) {
         const cell = _getCellFromEventTarget(e.target);
         if (!cell) return;
         if (e.relatedTarget && cell.g.contains(e.relatedTarget)) return;
-        if (!revealed[cell.key] && !gameOver) {
+        if (gameOver) return;
+        if (!revealed[cell.key]) {
             cell.poly.setAttribute('fill', flagged[cell.key] ? '#3a1a4c' : '#4a4a7c');
         }
     });
@@ -143,6 +144,7 @@ function _attachSVGDelegatedEvents(svg) {
         const cell = _getCellFromEventTarget(e.target);
         if (!cell) return;
         if (e.relatedTarget && cell.g.contains(e.relatedTarget)) return;
+        if (gameOver) return;
         if (!revealed[cell.key]) {
             cell.poly.setAttribute('fill', flagged[cell.key] ? '#2a1a3c' : 'url(#cell-grad)');
         }
