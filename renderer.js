@@ -84,7 +84,9 @@ function _buildCell(row, col) {
     text.setAttribute('fill', 'none');
     g.appendChild(text);
 
-    cellDomMap[key] = { g, poly, text };
+    const cellMeta = { key, row, col, g, poly, text };
+    cellDomMap[key] = cellMeta;
+    g._cellMeta = cellMeta;
 
     return g;
 }
@@ -152,12 +154,7 @@ function _getCellFromEventTarget(target) {
     if (!(target instanceof Element)) return null;
     const g = target.closest('g[data-row][data-col]');
     if (!g) return null;
-    const row = Number(g.dataset.row);
-    const col = Number(g.dataset.col);
-    const key = `${row},${col}`;
-    const dom = cellDomMap[key];
-    if (!dom) return null;
-    return { key, row, col, ...dom };
+    return g._cellMeta || null;
 }
 
 // 查找格子的 SVG <g> 元素
