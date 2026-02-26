@@ -27,6 +27,8 @@ let gameOver    = false;
 let firstClick  = true; // 首次点击标记，用于安全放雷
 let mineCount   = 0;    // 当前剩余标记数（用于 UI 显示）
 let totalMines  = 0;    // 初始雷数
+let revealedCount = 0;  // 已揭示格子数（用于 O(1) 胜利判断）
+let totalCellsCount = 0;// 当前棋盘总格子数
 let timer       = 0;
 let timerInterval = null;
 let touchHoldTimers = {};
@@ -178,6 +180,8 @@ function initGame() {
 
     board = {}; revealed = {}; flagged = {};
     mineLocations = []; gameOver = false; firstClick = true; timer = 0;
+    revealedCount = 0;
+    totalCellsCount = 0;
     touchHoldTimers = {};
     touchLongPressFired = {};
 
@@ -202,6 +206,7 @@ function _buildBoard() {
 
     const allCells = getAllCells(sides);
     const totalCells = allCells.length;
+    totalCellsCount = totalCells;
     document.getElementById('cellCount').textContent = totalCells;
 
     // 校正雷数上限
@@ -459,6 +464,7 @@ function revealCell(row, col) {
     if (revealed[key] || flagged[key]) return;
 
     revealed[key] = true;
+    revealedCount++;
     setCellState(row, col, 'revealed', board[key]);
 
     if (board[key] === 0) {
@@ -467,13 +473,7 @@ function revealCell(row, col) {
 }
 
 function checkWin() {
-    const allCells = getAllCells(sides);
-    const totalCells = allCells.length;
-    let revealedCount = 0;
-    for (const [r, c] of allCells)
-        if (revealed[`${r},${c}`]) revealedCount++;
-
-    if (revealedCount === totalCells - totalMines) {
+    if (revealedCount === totalCellsCount - totalMines) {
         gameOver = true;
         clearInterval(timerInterval);
         mineLocations.forEach(([r, c]) => {
