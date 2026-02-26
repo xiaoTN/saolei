@@ -1,6 +1,6 @@
 // renderer.js
 // SVG 棋盘的创建与格子状态更新
-// 依赖：geometry.js（getCellVertices, getCellCenter）
+// 依赖：geometry.js（getCellVertices）
 //       game.js 中的全局变量：sides, rows, cols, revealed, flagged, gameOver, NUM_COLORS
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -15,10 +15,13 @@ function createSVGBoard(boardEl, width, height) {
     svg.style.display = 'block';
 
     svg.appendChild(_buildDefs());
+    _attachSVGDelegatedEvents(svg);
 
+    const frag = document.createDocumentFragment();
     for (const [i, j] of getAllCells(sides)) {
-        svg.appendChild(_buildCell(i, j));
+        frag.appendChild(_buildCell(i, j));
     }
+    svg.appendChild(frag);
 
     boardEl.appendChild(svg);
 }
@@ -49,7 +52,7 @@ function _buildDefs() {
 function _buildCell(row, col) {
     const key = `${row},${col}`;
     const verts = getCellVertices(sides, row, col);
-    const [cx, cy] = getCellCenter(sides, row, col);
+    const [cx, cy] = _getCenterFromVerts(verts);
     const pts = verts.map(v => `${v[0].toFixed(2)},${v[1].toFixed(2)}`).join(' ');
 
     // 扩展网格中的辅助连接格（8+4 的小正方形）使用更小字号
@@ -81,23 +84,80 @@ function _buildCell(row, col) {
     text.setAttribute('fill', 'none');
     g.appendChild(text);
 
-    g.addEventListener('mouseenter', () => {
-        if (!revealed[key] && !gameOver)
-            poly.setAttribute('fill', flagged[key] ? '#3a1a4c' : '#4a4a7c');
-    });
-    g.addEventListener('mouseleave', () => {
-        if (!revealed[key])
-            poly.setAttribute('fill', flagged[key] ? '#2a1a3c' : 'url(#cell-grad)');
-    });
-    g.addEventListener('click', () => handleClick(row, col));
-    g.addEventListener('contextmenu', e => handleRightClick(e, row, col));
-    g.addEventListener('touchstart', e => handleTouchStart(e, row, col), { passive: false });
-    g.addEventListener('touchend', e => handleTouchEnd(e, row, col), { passive: false });
-    g.addEventListener('touchcancel', () => handleTouchCancel(row, col));
-
     cellDomMap[key] = { g, poly, text };
 
     return g;
+}
+
+function _getCenterFromVerts(verts) {
+    let x = 0, y = 0;
+    for (const [vx, vy] of verts) {
+        x += vx;
+        y += vy;
+    }
+    return [x / verts.length, y / verts.length];
+}
+
+function _attachSVGDelegatedEvents(svg) {
+    svg.addEventListener('mouseover', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        if (e.relatedTarget && cell.g.contains(e.relatedTarget)) return;
+        if (!revealed[cell.key] && !gameOver) {
+            cell.poly.setAttribute('fill', flagged[cell.key] ? '#3a1a4c' : '#4a4a7c');
+        }
+    });
+
+    svg.addEventListener('mouseout', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        if (e.relatedTarget && cell.g.contains(e.relatedTarget)) return;
+        if (!revealed[cell.key]) {
+            cell.poly.setAttribute('fill', flagged[cell.key] ? '#2a1a3c' : 'url(#cell-grad)');
+        }
+    });
+
+    svg.addEventListener('click', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        handleClick(cell.row, cell.col);
+    });
+
+    svg.addEventListener('contextmenu', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        handleRightClick(e, cell.row, cell.col);
+    });
+
+    svg.addEventListener('touchstart', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        handleTouchStart(e, cell.row, cell.col);
+    }, { passive: false });
+
+    svg.addEventListener('touchend', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        handleTouchEnd(e, cell.row, cell.col);
+    }, { passive: false });
+
+    svg.addEventListener('touchcancel', e => {
+        const cell = _getCellFromEventTarget(e.target);
+        if (!cell) return;
+        handleTouchCancel(cell.row, cell.col);
+    });
+}
+
+function _getCellFromEventTarget(target) {
+    if (!(target instanceof Element)) return null;
+    const g = target.closest('g[data-row][data-col]');
+    if (!g) return null;
+    const row = Number(g.dataset.row);
+    const col = Number(g.dataset.col);
+    const key = `${row},${col}`;
+    const dom = cellDomMap[key];
+    if (!dom) return null;
+    return { key, row, col, ...dom };
 }
 
 // 查找格子的 SVG <g> 元素
