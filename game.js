@@ -471,6 +471,8 @@ function revealCell(row, col) {
     if (revealed[startKey] || flagged[startKey]) return;
 
     const queue = [[row, col]];
+    const queued = Object.create(null);
+    queued[startKey] = true;
     const updates = [];
 
     for (let head = 0; head < queue.length; head++) {
@@ -487,7 +489,10 @@ function revealCell(row, col) {
 
         for (const [nr, nc] of _getNeighborsCached(cr, cc)) {
             const nKey = `${nr},${nc}`;
-            if (!revealed[nKey] && !flagged[nKey]) queue.push([nr, nc]);
+            if (!revealed[nKey] && !flagged[nKey] && !queued[nKey]) {
+                queued[nKey] = true;
+                queue.push([nr, nc]);
+            }
         }
     }
 
