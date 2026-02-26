@@ -397,6 +397,7 @@ function handleRightClick(e, row, col) {
                 }
             }
             if (gameOver) return;
+            vibrate(30);
             checkWin();
             return;
         }
@@ -412,10 +413,12 @@ function handleRightClick(e, row, col) {
         });
         gameOver = true;
         clearInterval(timerInterval);
+        vibrate([100, 50, 100]);
         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
         return;
     }
 
+    vibrate(30);
     revealCell(row, col);
     checkWin();
 }
