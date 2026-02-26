@@ -466,16 +466,33 @@ function handleTouchCancel(row, col) {
 }
 
 function revealCell(row, col) {
-    const key = `${row},${col}`;
-    if (!(key in board)) return; // 不是有效格子（sides===8 扩展网格中的空位）
-    if (revealed[key] || flagged[key]) return;
+    const startKey = `${row},${col}`;
+    if (!(startKey in board)) return; // 不是有效格子（sides===8 扩展网格中的空位）
+    if (revealed[startKey] || flagged[startKey]) return;
 
-    revealed[key] = true;
-    revealedCount++;
-    setCellState(row, col, 'revealed', board[key]);
+    const queue = [[row, col]];
+    const updates = [];
 
-    if (board[key] === 0) {
-        _getNeighborsCached(row, col).forEach(([r, c]) => revealCell(r, c));
+    for (let head = 0; head < queue.length; head++) {
+        const [cr, cc] = queue[head];
+        const key = `${cr},${cc}`;
+        if (!(key in board) || revealed[key] || flagged[key]) continue;
+
+        revealed[key] = true;
+        revealedCount++;
+        const value = board[key];
+        updates.push([cr, cc, value]);
+
+        if (value !== 0) continue;
+
+        for (const [nr, nc] of _getNeighborsCached(cr, cc)) {
+            const nKey = `${nr},${nc}`;
+            if (!revealed[nKey] && !flagged[nKey]) queue.push([nr, nc]);
+        }
+    }
+
+    for (const [ur, uc, value] of updates) {
+        setCellState(ur, uc, 'revealed', value);
     }
 }
 
