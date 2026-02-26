@@ -4,9 +4,11 @@
 //       game.js 中的全局变量：sides, rows, cols, revealed, flagged, gameOver, NUM_COLORS
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+let cellDomMap = Object.create(null);
 
 // 创建整个 SVG 棋盘，挂载到 boardEl
 function createSVGBoard(boardEl, width, height) {
+    cellDomMap = Object.create(null);
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);
@@ -93,22 +95,23 @@ function _buildCell(row, col) {
     g.addEventListener('touchend', e => handleTouchEnd(e, row, col), { passive: false });
     g.addEventListener('touchcancel', () => handleTouchCancel(row, col));
 
+    cellDomMap[key] = { g, poly, text };
+
     return g;
 }
 
 // 查找格子的 SVG <g> 元素
 function getSVGCell(row, col) {
-    return document.querySelector(`svg g[data-row="${row}"][data-col="${col}"]`);
+    return cellDomMap[`${row},${col}`]?.g || null;
 }
 
 // 更新格子的视觉状态
 // state: 'normal' | 'revealed' | 'flagged' | 'mine'
 // value: 数字（仅 revealed 状态使用）
 function setCellState(row, col, state, value = '') {
-    const g = getSVGCell(row, col);
-    if (!g) return;
-    const poly = g.querySelector('polygon');
-    const text = g.querySelector('text');
+    const dom = cellDomMap[`${row},${col}`];
+    if (!dom) return;
+    const { poly, text } = dom;
 
     switch (state) {
         case 'normal':
