@@ -249,7 +249,6 @@ function _placeMines(safeRow, safeCol) {
 
     const candidates = allCells.filter(([r, c]) => !safeKeys.has(`${r},${c}`));
 
-    let placed = 0;
     // 如果候选格子不够放所有雷，尽量多放
     const actualMines = Math.min(mineCount, candidates.length);
     if (actualMines < mineCount) {
@@ -257,15 +256,14 @@ function _placeMines(safeRow, safeCol) {
         totalMines = actualMines;
     }
 
-    while (placed < actualMines) {
-        const idx = Math.floor(Math.random() * candidates.length);
-        const [r, c] = candidates[idx];
+    // 部分 Fisher-Yates 洗牌：只打乱前 actualMines 个位置，避免重复抽样
+    for (let i = 0; i < actualMines; i++) {
+        const j = i + Math.floor(Math.random() * (candidates.length - i));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        const [r, c] = candidates[i];
         const key = `${r},${c}`;
-        if (board[key] !== -1) {
-            board[key] = -1;
-            mineLocations.push([r, c]);
-            placed++;
-        }
+        board[key] = -1;
+        mineLocations.push([r, c]);
     }
 
     // 重新计算所有格子周围雷数
