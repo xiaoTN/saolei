@@ -7,7 +7,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 let cellDomMap = Object.create(null);
 
 // 创建整个 SVG 棋盘，挂载到 boardEl
-function createSVGBoard(boardEl, width, height) {
+function createSVGBoard(boardEl, width, height, allCells = null) {
     cellDomMap = Object.create(null);
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('width', width);
@@ -18,7 +18,7 @@ function createSVGBoard(boardEl, width, height) {
     _attachSVGDelegatedEvents(svg);
 
     const frag = document.createDocumentFragment();
-    for (const [i, j] of getAllCells(sides)) {
+    for (const [i, j] of (allCells || getAllCells(sides))) {
         frag.appendChild(_buildCell(i, j));
     }
     svg.appendChild(frag);

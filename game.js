@@ -234,7 +234,7 @@ function _buildBoard() {
         board[key] = 0; revealed[key] = false; flagged[key] = false;
     }
 
-    createSVGBoard(boardEl, width, height);
+    createSVGBoard(boardEl, width, height, allCells);
 }
 
 // ─── 核心逻辑 ──────────────────────────────────────────────────
