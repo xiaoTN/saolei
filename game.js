@@ -545,6 +545,9 @@ let _isPanning = false;
     let startX = 0, startY = 0;
     let panX = 0, panY = 0;
     let lastPanX = 0, lastPanY = 0;
+    let wheelDX = 0, wheelDY = 0;
+    let wheelRAF = 0;
+    let wheelPanCleanupTimer = 0;
 
     function getViewport() { return document.getElementById('boardViewport'); }
     function getBoard()    { return document.getElementById('board'); }
@@ -565,6 +568,48 @@ let _isPanning = false;
     function applyTransform() {
         const board = getBoard();
         if (board) board.style.transform = `translate(${panX}px, ${panY}px)`;
+    }
+
+    function _scheduleWheelPanClassClear() {
+        clearTimeout(wheelPanCleanupTimer);
+        wheelPanCleanupTimer = setTimeout(() => {
+            if (!dragging) getViewport()?.classList.remove('panning');
+        }, 120);
+    }
+
+    function flushWheelPan() {
+        wheelRAF = 0;
+        const dx = wheelDX, dy = wheelDY;
+        wheelDX = 0; wheelDY = 0;
+
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+        [panX, panY] = clampPan(vp, board, panX - dx, panY - dy);
+        applyTransform();
+        _scheduleWheelPanClassClear();
+    }
+
+    function onWheel(e) {
+        if (e.ctrlKey) return; // 保留浏览器缩放手势
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+
+        const canPanX = board.offsetWidth > vp.clientWidth;
+        const canPanY = board.offsetHeight > vp.clientHeight;
+        if (!canPanX && !canPanY) return;
+
+        const dx = canPanX ? e.deltaX : 0;
+        const dy = canPanY ? e.deltaY : 0;
+        if (dx === 0 && dy === 0) return;
+
+        e.preventDefault();
+        _isPanning = true;
+        vp.classList.add('panning');
+        clearTimeout(wheelPanCleanupTimer);
+        wheelDX += dx;
+        wheelDY += dy;
+        if (!wheelRAF) wheelRAF = requestAnimationFrame(flushWheelPan);
+        setTimeout(() => { _isPanning = false; }, 30);
     }
 
     // ── 鼠标（桌面端）──
@@ -653,6 +698,7 @@ let _isPanning = false;
         vp.addEventListener('touchmove',  onTouchMove,  { passive: false });
         vp.addEventListener('touchend',   onTouchEnd,   { passive: true });
         vp.addEventListener('touchcancel',onTouchEnd,   { passive: true });
+        vp.addEventListener('wheel',      onWheel,      { passive: false });
     }
 
     window._panReset = () => { panX = 0; panY = 0; applyTransform(); };

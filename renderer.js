@@ -5,10 +5,13 @@
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 let cellDomMap = Object.create(null);
+let boardRenderToken = 0;
 
 // 创建整个 SVG 棋盘，挂载到 boardEl
 function createSVGBoard(boardEl, width, height, allCells = null) {
+    const renderToken = ++boardRenderToken;
     cellDomMap = Object.create(null);
+    const cells = allCells || getAllCells(sides);
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);
@@ -16,14 +19,40 @@ function createSVGBoard(boardEl, width, height, allCells = null) {
 
     svg.appendChild(_buildDefs());
     _attachSVGDelegatedEvents(svg);
-
-    const frag = document.createDocumentFragment();
-    for (const [i, j] of (allCells || getAllCells(sides))) {
-        frag.appendChild(_buildCell(i, j));
-    }
-    svg.appendChild(frag);
-
     boardEl.appendChild(svg);
+
+    const CHUNKED_RENDER_THRESHOLD = 2500;
+    if (cells.length <= CHUNKED_RENDER_THRESHOLD) {
+        const frag = document.createDocumentFragment();
+        for (const [i, j] of cells) frag.appendChild(_buildCell(i, j));
+        svg.appendChild(frag);
+        return;
+    }
+
+    // 大棋盘分帧渲染，避免一次性创建海量 SVG 节点阻塞主线程
+    svg.style.pointerEvents = 'none';
+    let index = 0;
+    const chunkSize = cells.length >= 8000 ? 200 : 350;
+
+    function renderChunk() {
+        if (renderToken !== boardRenderToken || !svg.isConnected) return;
+        const frag = document.createDocumentFragment();
+        const end = Math.min(index + chunkSize, cells.length);
+        for (; index < end; index++) {
+            const [r, c] = cells[index];
+            frag.appendChild(_buildCell(r, c));
+        }
+        svg.appendChild(frag);
+
+        if (index < cells.length) {
+            requestAnimationFrame(renderChunk);
+            return;
+        }
+
+        svg.style.pointerEvents = '';
+    }
+
+    requestAnimationFrame(renderChunk);
 }
 
 // 构建 SVG <defs>（渐变）
