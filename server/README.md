@@ -1,9 +1,13 @@
-# 后端最小接入说明
+# 后端最小接入说明（Python）
 
 ## 1) 安装依赖
 
+建议使用虚拟环境：
+
 ```bash
-npm install
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ## 2) 准备 PostgreSQL 数据库
@@ -26,7 +30,7 @@ cp .env.example .env
 ## 4) 启动
 
 ```bash
-npm start
+python3 server/app.py
 ```
 
 默认会在 `http://127.0.0.1:8000` 提供：
@@ -34,8 +38,8 @@ npm start
 - API 接口：
   - `GET /api/health`
   - `POST /api/sessions/start`
-  - `POST /api/sessions/:gameId/end`
-  - `POST /api/sessions/:gameId/events`
+  - `POST /api/sessions/<gameId>/end`
+  - `POST /api/sessions/<gameId>/events`
 
 ## 5) 当前前端已上报的数据
 
