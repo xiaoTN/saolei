@@ -17,6 +17,155 @@ const NUM_COLORS = {
     7: '#ff6b81', 8: '#70a1ff',
 };
 
+const CLIENT_VERSION = '20260227a';
+const API_BASE = window.__MINESWEEPER_API_BASE || '';
+const analyticsState = {
+    clientSessionId: '',
+    gameId: null,
+    roundStartTs: 0,
+    firstActionMs: null,
+    ended: false,
+    leftClicks: 0,
+    rightClicks: 0,
+    longPressCount: 0,
+    chordCount: 0,
+    pendingEndResult: null,
+};
+
+function _getClientSessionId() {
+    const key = 'ms_client_session_id';
+    let id = '';
+    try {
+        id = localStorage.getItem(key) || '';
+        if (!id) {
+            id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            localStorage.setItem(key, id);
+        }
+    } catch (_) {
+        id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return id;
+}
+
+function _detectDeviceType() {
+    const ua = navigator.userAgent || '';
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) return 'mobile';
+    return 'desktop';
+}
+
+function _detectInputType() {
+    if (navigator.maxTouchPoints > 0) return 'touch';
+    return 'mouse';
+}
+
+async function _postAnalytics(path, payload, keepalive = false) {
+    try {
+        const res = await fetch(`${API_BASE}${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive,
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (_) {
+        return null;
+    }
+}
+
+function _countFlags() {
+    return totalMines - mineCount;
+}
+
+function _countMinesCleared() {
+    let count = 0;
+    for (const key in flagged) {
+        if (flagged[key] && board[key] === -1) count++;
+    }
+    return count;
+}
+
+function _trackFirstAction() {
+    if (analyticsState.firstActionMs !== null) return;
+    if (!analyticsState.roundStartTs) return;
+    analyticsState.firstActionMs = Math.max(0, Math.floor(performance.now() - analyticsState.roundStartTs));
+}
+
+function _resetAnalyticsCounters() {
+    analyticsState.gameId = null;
+    analyticsState.roundStartTs = performance.now();
+    analyticsState.firstActionMs = null;
+    analyticsState.ended = false;
+    analyticsState.leftClicks = 0;
+    analyticsState.rightClicks = 0;
+    analyticsState.longPressCount = 0;
+    analyticsState.chordCount = 0;
+    analyticsState.pendingEndResult = null;
+}
+
+function _buildEndPayload(result) {
+    const actionsTotal =
+        analyticsState.leftClicks +
+        analyticsState.rightClicks +
+        analyticsState.chordCount;
+
+    return {
+        result,
+        durationSeconds: timer,
+        firstActionMs: analyticsState.firstActionMs ?? null,
+        revealedCount: revealedCount,
+        flagCount: _countFlags(),
+        minesClearedCount: _countMinesCleared(),
+        actionsTotal,
+        leftClicks: analyticsState.leftClicks,
+        rightClicks: analyticsState.rightClicks,
+        longPressCount: analyticsState.longPressCount,
+        chordCount: analyticsState.chordCount,
+    };
+}
+
+function _endAnalyticsSession(result, useKeepalive = false) {
+    if (analyticsState.ended) return;
+    analyticsState.ended = true;
+    analyticsState.pendingEndResult = result;
+    if (!analyticsState.gameId) return;
+    _postAnalytics(
+        `/api/sessions/${analyticsState.gameId}/end`,
+        _buildEndPayload(analyticsState.pendingEndResult),
+        useKeepalive
+    );
+}
+
+function _startAnalyticsSession() {
+    analyticsState.clientSessionId = analyticsState.clientSessionId || _getClientSessionId();
+    _resetAnalyticsCounters();
+    _postAnalytics('/api/sessions/start', {
+        clientSessionId: analyticsState.clientSessionId,
+        boardRows: rows,
+        boardCols: cols,
+        sides,
+        totalCells: totalCellsCount,
+        totalMines,
+        difficulty: currentDifficulty,
+        deviceType: _detectDeviceType(),
+        inputType: _detectInputType(),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        clientVersion: CLIENT_VERSION,
+    }).then((data) => {
+        if (data && data.ok && data.gameId && !analyticsState.ended) {
+            analyticsState.gameId = data.gameId;
+        }
+        if (data && data.ok && data.gameId && analyticsState.ended && analyticsState.pendingEndResult) {
+            analyticsState.gameId = data.gameId;
+            _postAnalytics(
+                `/api/sessions/${analyticsState.gameId}/end`,
+                _buildEndPayload(analyticsState.pendingEndResult)
+            );
+        }
+    });
+}
+
 // ─── 游戏状态 ──────────────────────────────────────────────────
 
 let board       = {};   // key → -1(mine) | 0-8(数字)
@@ -151,6 +300,8 @@ function previewBoardSize() {
 }
 
 function initGame() {
+    if (!analyticsState.ended && analyticsState.roundStartTs) _endAnalyticsSession('abandon');
+
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
@@ -199,6 +350,7 @@ function initGame() {
     _setSettingsLocked(false);
 
     _buildBoard();
+    _startAnalyticsSession();
 }
 
 function _buildBoard() {
@@ -311,6 +463,8 @@ function handleClick(row, col) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    analyticsState.leftClicks++;
+    _trackFirstAction();
 
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
@@ -323,6 +477,7 @@ function handleClick(row, col) {
         const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
+            analyticsState.chordCount++;
             startTimer();
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
@@ -334,6 +489,7 @@ function handleClick(row, col) {
                         gameOver = true;
                         clearInterval(timerInterval);
                         vibrate([100, 50, 100]);
+                        _endAnalyticsSession('lose');
                         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
                         return;
                     } else {
@@ -372,6 +528,8 @@ function handleRightClick(e, row, col) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    analyticsState.rightClicks++;
+    _trackFirstAction();
 
     // 首次点击：直接打开格子
     if (firstClick) {
@@ -384,6 +542,7 @@ function handleRightClick(e, row, col) {
         const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
+            analyticsState.chordCount++;
             startTimer();
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
@@ -394,6 +553,7 @@ function handleRightClick(e, row, col) {
                         });
                         gameOver = true;
                         clearInterval(timerInterval);
+                        _endAnalyticsSession('lose');
                         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
                         return;
                     } else {
@@ -419,6 +579,7 @@ function handleRightClick(e, row, col) {
         gameOver = true;
         clearInterval(timerInterval);
         vibrate([100, 50, 100]);
+        _endAnalyticsSession('lose');
         _showMessage('💥 游戏结束！你踩到雷了', 'lose');
         return;
     }
@@ -446,6 +607,7 @@ function handleTouchStart(e, row, col) {
     clearTimeout(touchHoldTimers[key]);
     // 长按：打开格子（reveal）
     touchHoldTimers[key] = setTimeout(() => {
+        analyticsState.longPressCount++;
         touchLongPressFired[key] = true;
         handleRightClick({ preventDefault() {} }, row, col);
     }, 450);
@@ -518,6 +680,7 @@ function checkWin() {
         mineLocations.forEach(([r, c]) => {
             if (!flagged[`${r},${c}`]) setCellState(r, c, 'flagged');
         });
+        _endAnalyticsSession('win');
         _showMessage(`🎉 恭喜！你赢了！用时 ${timer} 秒`, 'win');
     }
 }
@@ -716,8 +879,12 @@ let _isPanning = false;
     }
 
     window._panReset = () => { panX = 0; panY = 0; applyTransform(); };
-    window._panCenter = centerPan;
+window._panCenter = centerPan;
 })();
+
+window.addEventListener('beforeunload', () => {
+    if (!analyticsState.ended && analyticsState.roundStartTs) _endAnalyticsSession('abandon', true);
+});
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
