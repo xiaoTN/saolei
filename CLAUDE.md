@@ -4,22 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-多边形扫雷游戏，纯前端实现（原生 HTML/CSS/JavaScript），使用 SVG 绘制棋盘。项目强调几何正确性、移动端可用性和大棋盘性能。
+多边形扫雷游戏，前端为原生 HTML/CSS/JavaScript + SVG，后端为 Python Flask + PostgreSQL。项目强调几何正确性、移动端可用性和大棋盘性能，同时记录对局统计数据。
 
 ## 技术栈
 
 - HTML5 + CSS3（无框架、无构建工具）
 - JavaScript (ES6+)（全局脚本，按顺序加载）
 - SVG（棋盘渲染与交互事件）
+- Python 3 + Flask（后端 API 与静态文件服务）
+- PostgreSQL（对局数据存储）
 
 ## 文件结构
 
 ```text
-index.html     # 页面结构与脚本加载顺序（含缓存版本号）
-style.css      # UI 样式、布局、视口区域样式
-geometry.js    # 多边形几何/邻居/画布尺寸/有效格枚举
-renderer.js    # SVG 创建、格子状态更新、事件委托
-game.js        # 游戏状态、规则、计时器、设置、平移与交互
+index.html            # 页面结构与脚本加载顺序（含缓存版本号）
+style.css             # UI 样式、布局、视口区域样式
+geometry.js           # 多边形几何/邻居/画布尺寸/有效格枚举
+renderer.js           # SVG 创建、格子状态更新、事件委托
+game.js               # 游戏状态、规则、计时器、设置、平移、前端埋点上报
+server/app.py         # Flask 后端（静态文件 + API）
+server/sql/schema.sql # PostgreSQL 建表脚本
+requirements.txt      # Python 依赖
+.env.example          # 后端环境变量示例
 ```
 
 加载顺序必须保持：`geometry.js -> renderer.js -> game.js`。
@@ -52,6 +58,18 @@ game.js        # 游戏状态、规则、计时器、设置、平移与交互
 - 标旗：轻震 `vibrate(15)`
 - 踩雷：震动模式 `vibrate([100, 50, 100])`
 - 注意：iOS Safari 通常不支持 `navigator.vibrate()`
+
+### 后端数据记录
+
+- 已接入对局开局上报：行列、边数、总格子、总雷数、难度、设备输入信息。
+- 已接入对局结束上报：`win/lose/abandon`、用时、已开格、标旗数、排雷数。
+- 已接入行为计数：左键、右键、长按、chord。
+- 玩家刷新/关闭页面时会尝试上报 `abandon`。
+- API 路由：
+  - `GET /api/health`
+  - `POST /api/sessions/start`
+  - `POST /api/sessions/<gameId>/end`
+  - `POST /api/sessions/<gameId>/events`
 
 ## 性能优化现状（大棋盘相关）
 
@@ -87,10 +105,31 @@ game.js        # 游戏状态、规则、计时器、设置、平移与交互
 - 游戏进行中（`firstClick === false`）设置项会锁定，避免改盘面导致状态不一致。
 - 平移手势通过 `_isPanning` 抑制点击/长按；改交互时要回归测试鼠标、触摸、触控板三条路径。
 - `revealCell()` / 开雷逻辑中对有效格判断优先使用 `board` 映射，而不是单纯 `rows/cols` 范围。
+- 前端埋点请求必须是非阻塞，后端不可用时不应影响游戏流程。
+
+### server/app.py
+
+- 不要记录明文 IP，使用带盐哈希（`IP_HASH_SALT`）。
+- `start/end/events` 接口字段改动需和 `game.js` 上报同步。
+- 静态文件由 Flask 提供，默认入口是 `/` -> `index.html`。
+- 数据写入必须使用参数化查询，避免 SQL 注入。
 
 ## 本地运行与验证
 
-### 运行
+### 运行（推荐：Python 后端）
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# 填写 DATABASE_URL 与 IP_HASH_SALT
+psql "$DATABASE_URL" -f server/sql/schema.sql
+python3 server/app.py
+# 打开 http://127.0.0.1:8000/
+```
+
+### 仅前端静态调试（无后端）
 
 ```bash
 python3 -m http.server 8000
@@ -101,6 +140,7 @@ python3 -m http.server 8000
 
 ```bash
 node --check game.js renderer.js geometry.js
+python3 -m py_compile server/app.py
 ```
 
 手工验证建议：
@@ -109,6 +149,7 @@ node --check game.js renderer.js geometry.js
 - 大棋盘（如 `100x100`）创建是否分帧、交互是否恢复
 - 拖拽/双指滑动平移、默认居中是否正常
 - 踩雷后雷格 hover 颜色不变
+- 后端启动后完成一局，检查 `game_sessions` 是否新增记录
 
 ## 文档同步规则（重要）
 
