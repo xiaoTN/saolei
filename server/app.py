@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,35 +55,19 @@ def sanitize_start_payload(body: dict) -> dict:
         'client_session_id': str(body.get('clientSessionId', ''))[:128],
         'board_rows': clamp_int(body.get('boardRows'), 1, 1000),
         'board_cols': clamp_int(body.get('boardCols'), 1, 1000),
-        'sides': clamp_int(body.get('sides'), 3, 16),
         'total_cells': clamp_int(body.get('totalCells'), 1, 1_000_000),
         'total_mines': clamp_int(body.get('totalMines'), 1, 1_000_000),
-        'difficulty': (body.get('difficulty') or None),
-        'device_type': (body.get('deviceType') or None),
-        'input_type': (body.get('inputType') or None),
-        'viewport_width': clamp_int(body.get('viewportWidth'), 0, 20_000),
-        'viewport_height': clamp_int(body.get('viewportHeight'), 0, 20_000),
-        'client_version': (body.get('clientVersion') or None),
     }
 
 
 def sanitize_end_payload(body: dict) -> dict:
     result = body.get('result')
-    status = result if result in ('win', 'lose', 'abandon') else 'abandon'
-    extra = body.get('extra') if isinstance(body.get('extra'), dict) else {}
+    game_result = result if result in ('win', 'lose', 'abandon') else 'abandon'
     return {
-        'status': status,
+        'result': game_result,
         'duration_seconds': clamp_int(body.get('durationSeconds'), 0, 60 * 60 * 24),
-        'first_action_ms': clamp_int(body.get('firstActionMs'), 0, 60 * 60 * 1000),
-        'revealed_count': clamp_int(body.get('revealedCount'), 0, 1_000_000),
-        'flag_count': clamp_int(body.get('flagCount'), 0, 1_000_000),
-        'mines_cleared_count': clamp_int(body.get('minesClearedCount'), 0, 1_000_000),
-        'actions_total': clamp_int(body.get('actionsTotal'), 0, 1_000_000),
-        'left_clicks': clamp_int(body.get('leftClicks'), 0, 1_000_000),
-        'right_clicks': clamp_int(body.get('rightClicks'), 0, 1_000_000),
-        'long_press_count': clamp_int(body.get('longPressCount'), 0, 1_000_000),
-        'chord_count': clamp_int(body.get('chordCount'), 0, 1_000_000),
-        'extra': extra,
+        'revealed_cells': clamp_int(body.get('revealedCount'), 0, 1_000_000),
+        'mines_cleared': clamp_int(body.get('minesClearedCount'), 0, 1_000_000),
     }
 
 
@@ -121,19 +104,13 @@ def start_session():
         return jsonify({'ok': False, 'error': 'clientSessionId is required'}), 400
 
     ip_hash = hash_ip(get_request_ip())
-    ua = (request.headers.get('User-Agent') or '')[:512]
-
     query = """
         INSERT INTO game_sessions (
-            ip_hash, client_session_id, board_rows, board_cols, sides,
-            total_cells, total_mines, difficulty, device_type, input_type,
-            viewport_width, viewport_height, user_agent, client_version
+            ip_hash, client_session_id, board_rows, board_cols, total_cells, total_mines
         ) VALUES (
-            %(ip_hash)s, %(client_session_id)s, %(board_rows)s, %(board_cols)s, %(sides)s,
-            %(total_cells)s, %(total_mines)s, %(difficulty)s, %(device_type)s, %(input_type)s,
-            %(viewport_width)s, %(viewport_height)s, %(user_agent)s, %(client_version)s
+            %(ip_hash)s, %(client_session_id)s, %(board_rows)s, %(board_cols)s, %(total_cells)s, %(total_mines)s
         )
-        RETURNING id, started_at
+        RETURNING id, created_at
     """
 
     try:
@@ -142,7 +119,6 @@ def start_session():
             {
                 **data,
                 'ip_hash': ip_hash,
-                'user_agent': ua,
             },
             fetchone=True,
         )
@@ -163,20 +139,10 @@ def end_session(game_id: str):
     query = """
         UPDATE game_sessions
         SET
-            status = %(status)s,
-            result = %(status)s,
-            ended_at = COALESCE(ended_at, NOW()),
+            result = %(result)s,
             duration_seconds = %(duration_seconds)s,
-            first_action_ms = %(first_action_ms)s,
-            revealed_count = %(revealed_count)s,
-            flag_count = %(flag_count)s,
-            mines_cleared_count = %(mines_cleared_count)s,
-            actions_total = %(actions_total)s,
-            left_clicks = %(left_clicks)s,
-            right_clicks = %(right_clicks)s,
-            long_press_count = %(long_press_count)s,
-            chord_count = %(chord_count)s,
-            extra = %(extra)s::jsonb
+            revealed_cells = %(revealed_cells)s,
+            mines_cleared = %(mines_cleared)s
         WHERE id = %(game_id)s AND ip_hash = %(ip_hash)s
         RETURNING id
     """
@@ -186,7 +152,6 @@ def end_session(game_id: str):
             query,
             {
                 **data,
-                'extra': json.dumps(data['extra']),
                 'game_id': game_id,
                 'ip_hash': ip_hash,
             },
@@ -194,27 +159,6 @@ def end_session(game_id: str):
         )
         if not row:
             return jsonify({'ok': False, 'error': 'session_not_found'}), 404
-        return jsonify({'ok': True})
-    except Exception:
-        return jsonify({'ok': False, 'error': 'internal_error'}), 500
-
-
-@app.post('/api/sessions/<game_id>/events')
-def add_event(game_id: str):
-    if not game_id:
-        return jsonify({'ok': False, 'error': 'gameId is required'}), 400
-
-    body = request.get_json(silent=True) or {}
-    event_type = str(body.get('eventType', ''))[:64]
-    payload = body.get('payload') if isinstance(body.get('payload'), dict) else {}
-    if not event_type:
-        return jsonify({'ok': False, 'error': 'eventType is required'}), 400
-
-    try:
-        db_execute(
-            'INSERT INTO game_events (game_id, event_type, payload) VALUES (%s, %s, %s::jsonb)',
-            (game_id, event_type, json.dumps(payload)),
-        )
         return jsonify({'ok': True})
     except Exception:
         return jsonify({'ok': False, 'error': 'internal_error'}), 500

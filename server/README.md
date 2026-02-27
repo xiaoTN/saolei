@@ -39,11 +39,8 @@ python3 server/app.py
   - `GET /api/health`
   - `POST /api/sessions/start`
   - `POST /api/sessions/<gameId>/end`
-  - `POST /api/sessions/<gameId>/events`
 
-## 5) 当前前端已上报的数据
+## 5) 当前前端已上报的数据（精简版）
 
-- 开局参数：行列、边数、总格子、总雷数、难度
-- 局结束：胜/负/中断、用时、已开格、标旗数、排雷数
-- 行为计数：左键、右键、长按、chord
-- 环境：设备类型、输入类型、视口尺寸、客户端版本
+- 开局参数：棋盘长宽（`board_rows` / `board_cols`）、总格子数、总雷数
+- 局结束：结果（`win/lose/abandon`）、持续时间、点开格子数、排雷数

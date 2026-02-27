@@ -17,7 +17,6 @@ const NUM_COLORS = {
     7: '#ff6b81', 8: '#70a1ff',
 };
 
-const CLIENT_VERSION = '20260227a';
 const API_BASE = window.__MINESWEEPER_API_BASE || '';
 const analyticsState = {
     clientSessionId: '',
@@ -25,12 +24,7 @@ const analyticsState = {
     started: false,
     roundToken: 0,
     roundStartTs: 0,
-    firstActionMs: null,
     ended: false,
-    leftClicks: 0,
-    rightClicks: 0,
-    longPressCount: 0,
-    chordCount: 0,
     pendingEndResult: null,
 };
 
@@ -49,17 +43,6 @@ function _getClientSessionId() {
     return id;
 }
 
-function _detectDeviceType() {
-    const ua = navigator.userAgent || '';
-    if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) return 'mobile';
-    return 'desktop';
-}
-
-function _detectInputType() {
-    if (navigator.maxTouchPoints > 0) return 'touch';
-    return 'mouse';
-}
-
 async function _postAnalytics(path, payload, keepalive = false) {
     try {
         const res = await fetch(`${API_BASE}${path}`, {
@@ -75,10 +58,6 @@ async function _postAnalytics(path, payload, keepalive = false) {
     }
 }
 
-function _countFlags() {
-    return totalMines - mineCount;
-}
-
 function _countMinesCleared() {
     let count = 0;
     for (const key in flagged) {
@@ -87,44 +66,21 @@ function _countMinesCleared() {
     return count;
 }
 
-function _trackFirstAction() {
-    if (analyticsState.firstActionMs !== null) return;
-    if (!analyticsState.roundStartTs) return;
-    analyticsState.firstActionMs = Math.max(0, Math.floor(performance.now() - analyticsState.roundStartTs));
-}
-
 function _resetAnalyticsCounters() {
     analyticsState.roundToken++;
     analyticsState.gameId = null;
     analyticsState.started = false;
     analyticsState.roundStartTs = performance.now();
-    analyticsState.firstActionMs = null;
     analyticsState.ended = false;
-    analyticsState.leftClicks = 0;
-    analyticsState.rightClicks = 0;
-    analyticsState.longPressCount = 0;
-    analyticsState.chordCount = 0;
     analyticsState.pendingEndResult = null;
 }
 
 function _buildEndPayload(result) {
-    const actionsTotal =
-        analyticsState.leftClicks +
-        analyticsState.rightClicks +
-        analyticsState.chordCount;
-
     return {
         result,
         durationSeconds: timer,
-        firstActionMs: analyticsState.firstActionMs ?? null,
         revealedCount: revealedCount,
-        flagCount: _countFlags(),
         minesClearedCount: _countMinesCleared(),
-        actionsTotal,
-        leftClicks: analyticsState.leftClicks,
-        rightClicks: analyticsState.rightClicks,
-        longPressCount: analyticsState.longPressCount,
-        chordCount: analyticsState.chordCount,
     };
 }
 
@@ -150,15 +106,8 @@ function _startAnalyticsSession() {
         clientSessionId: analyticsState.clientSessionId,
         boardRows: rows,
         boardCols: cols,
-        sides,
         totalCells: totalCellsCount,
         totalMines,
-        difficulty: currentDifficulty,
-        deviceType: _detectDeviceType(),
-        inputType: _detectInputType(),
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        clientVersion: CLIENT_VERSION,
     }).then((data) => {
         if (token !== analyticsState.roundToken) return;
         if (data && data.ok && data.gameId && !analyticsState.ended) {
@@ -476,8 +425,6 @@ function handleClick(row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
     _ensureAnalyticsSessionStarted();
-    analyticsState.leftClicks++;
-    _trackFirstAction();
 
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
@@ -490,7 +437,6 @@ function handleClick(row, col) {
         const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
-            analyticsState.chordCount++;
             startTimer();
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
@@ -542,8 +488,6 @@ function handleRightClick(e, row, col) {
     const key = `${row},${col}`;
     if (gameOver) return;
     _ensureAnalyticsSessionStarted();
-    analyticsState.rightClicks++;
-    _trackFirstAction();
 
     // 首次点击：直接打开格子
     if (firstClick) {
@@ -556,7 +500,6 @@ function handleRightClick(e, row, col) {
         const neighbors = _getNeighborsCached(row, col);
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
-            analyticsState.chordCount++;
             startTimer();
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
@@ -621,7 +564,6 @@ function handleTouchStart(e, row, col) {
     clearTimeout(touchHoldTimers[key]);
     // 长按：打开格子（reveal）
     touchHoldTimers[key] = setTimeout(() => {
-        analyticsState.longPressCount++;
         touchLongPressFired[key] = true;
         handleRightClick({ preventDefault() {} }, row, col);
     }, 450);
