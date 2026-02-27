@@ -22,6 +22,8 @@ const API_BASE = window.__MINESWEEPER_API_BASE || '';
 const analyticsState = {
     clientSessionId: '',
     gameId: null,
+    started: false,
+    roundToken: 0,
     roundStartTs: 0,
     firstActionMs: null,
     ended: false,
@@ -92,7 +94,9 @@ function _trackFirstAction() {
 }
 
 function _resetAnalyticsCounters() {
+    analyticsState.roundToken++;
     analyticsState.gameId = null;
+    analyticsState.started = false;
     analyticsState.roundStartTs = performance.now();
     analyticsState.firstActionMs = null;
     analyticsState.ended = false;
@@ -125,6 +129,7 @@ function _buildEndPayload(result) {
 }
 
 function _endAnalyticsSession(result, useKeepalive = false) {
+    if (!analyticsState.started) return;
     if (analyticsState.ended) return;
     analyticsState.ended = true;
     analyticsState.pendingEndResult = result;
@@ -137,8 +142,10 @@ function _endAnalyticsSession(result, useKeepalive = false) {
 }
 
 function _startAnalyticsSession() {
+    if (analyticsState.started) return;
+    analyticsState.started = true;
     analyticsState.clientSessionId = analyticsState.clientSessionId || _getClientSessionId();
-    _resetAnalyticsCounters();
+    const token = analyticsState.roundToken;
     _postAnalytics('/api/sessions/start', {
         clientSessionId: analyticsState.clientSessionId,
         boardRows: rows,
@@ -153,6 +160,7 @@ function _startAnalyticsSession() {
         viewportHeight: window.innerHeight,
         clientVersion: CLIENT_VERSION,
     }).then((data) => {
+        if (token !== analyticsState.roundToken) return;
         if (data && data.ok && data.gameId && !analyticsState.ended) {
             analyticsState.gameId = data.gameId;
         }
@@ -164,6 +172,10 @@ function _startAnalyticsSession() {
             );
         }
     });
+}
+
+function _ensureAnalyticsSessionStarted() {
+    if (!analyticsState.started) _startAnalyticsSession();
 }
 
 // ─── 游戏状态 ──────────────────────────────────────────────────
@@ -348,9 +360,9 @@ function initGame() {
     document.getElementById('message').className = 'message';
     document.getElementById('message').textContent = '';
     _setSettingsLocked(false);
+    _resetAnalyticsCounters();
 
     _buildBoard();
-    _startAnalyticsSession();
 }
 
 function _buildBoard() {
@@ -463,6 +475,7 @@ function handleClick(row, col) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    _ensureAnalyticsSessionStarted();
     analyticsState.leftClicks++;
     _trackFirstAction();
 
@@ -528,6 +541,7 @@ function handleRightClick(e, row, col) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    _ensureAnalyticsSessionStarted();
     analyticsState.rightClicks++;
     _trackFirstAction();
 
