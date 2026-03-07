@@ -40,13 +40,12 @@ python3 -m http.server 8000
 ### 运行测试
 
 ```bash
-# 安装依赖
+# 基础单元测试（推荐先运行）
+node unit-test.js
+
+# Playwright 端到端测试（需要浏览器）
 npm install playwright
-
-# 安装浏览器
 npx playwright install chromium
-
-# 运行测试
 node test-game.js
 ```
 
@@ -105,7 +104,32 @@ saolei/
 
 ## 🧪 自动化测试
 
-使用 Playwright 进行自动化测试，覆盖以下场景：
+### 基础单元测试
+
+快速验证核心几何和游戏逻辑：
+
+```bash
+node unit-test.js
+```
+
+**测试覆盖：**
+- 📐 多边形顶点计算（三角形、正方形、六边形、八边形）
+- 🔗 邻居关系计算
+- 🔌 统一接口
+- 🔢 数学一致性（邻居互为邻居）
+- 🚧 边界条件
+
+**预期输出：**
+```
+📊 测试报告
+✅ 通过: 25
+❌ 失败: 0
+🎉 所有测试通过！
+```
+
+### Playwright 端到端测试
+
+测试完整的浏览器交互：
 
 - ✅ 页面加载
 - ✅ 形状切换
