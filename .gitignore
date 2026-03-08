@@ -8,4 +8,6 @@ mobile/ios/
 
 # 签名密钥（不要提交）
 *.keystore
-mobile/keystore/
+mobile/keystore/*.keystore
+mobile/keystore/keystore.properties
+!mobile/keystore/README.md
