@@ -1,2 +1,11 @@
 node_modules/.bin
 .playwright-mcp
+
+# Capacitor
+mobile/node_modules/
+mobile/android/
+mobile/ios/
+
+# 签名密钥（不要提交）
+*.keystore
+mobile/keystore/
