@@ -5,8 +5,21 @@
 
 // ─── 工具函数 ──────────────────────────────────────────────────
 
+// 震动功能已迁移到 shared/haptics.js
+// 保留此函数作为兼容层
 function vibrate(pattern) {
-    if (navigator.vibrate) navigator.vibrate(pattern);
+    if (window.HapticsAdapter) {
+        // 根据参数判断震动类型
+        if (Array.isArray(pattern)) {
+            HapticsAdapter.error();
+        } else if (pattern <= 20) {
+            HapticsAdapter.tick();
+        } else {
+            HapticsAdapter.light();
+        }
+    } else if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+    }
 }
 
 // ─── 常量 ─────────────────────────────────────────────────────
