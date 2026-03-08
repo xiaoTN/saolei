@@ -62,9 +62,12 @@
         <div class="tips">单击标记地雷 🚩，右键 / 长按打开格子</div>
     </div>
 
-    <!-- 加载顺序：geometry → renderer → game -->
+    <!-- 加载顺序：platform → storage → haptics → geometry → renderer → game -->
+    <script src="shared/platform.js?v=20260308a"></script>
+    <script src="shared/storage.js?v=20260308a"></script>
+    <script src="shared/haptics.js?v=20260308a"></script>
     <script src="geometry.js?v=20260225b"></script>
     <script src="renderer.js?v=20260226a"></script>
-    <script src="game.js?v=20260225b"></script>
+    <script src="game.js?v=20260308a"></script>
 </body>
 </html>
