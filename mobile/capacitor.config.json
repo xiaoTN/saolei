@@ -1,0 +1,15 @@
+{
+  "appId": "com.saolei.app",
+  "appName": "多边形扫雷",
+  "webDir": "src",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SQLite": {
+      "iosDatabaseLocation": "Library/CapacitorDatabase",
+      "iosIsEncryption": false,
+      "androidIsEncryption": false
+    }
+  }
+}
