@@ -17,4 +17,6 @@ if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNati
 }
 
 // 导出到全局（兼容现有非模块化代码）
-window.Platform = Platform;
+if (typeof window !== 'undefined') {
+    window.Platform = Platform;
+}
