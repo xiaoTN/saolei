@@ -21,49 +21,80 @@ const StorageAdapter = {
     // === 设置存储 ===
     async saveSettings(settings) {
         if (!this._ready) return;
-        const data = JSON.stringify(settings);
-        localStorage.setItem('saolei_settings', data);
+        try {
+            const data = JSON.stringify(settings);
+            localStorage.setItem('saolei_settings', data);
+        } catch (e) {
+            console.error('saveSettings failed:', e);
+        }
     },
 
     async loadSettings() {
         if (!this._ready) return null;
-        const data = localStorage.getItem('saolei_settings');
-        return data ? JSON.parse(data) : null;
+        try {
+            const data = localStorage.getItem('saolei_settings');
+            return data ? JSON.parse(data) : null;
+        } catch (e) {
+            console.error('loadSettings failed:', e);
+            return null;
+        }
     },
 
     // === 统计数据 ===
     async saveStats(stats) {
         if (!this._ready) return;
-        const data = JSON.stringify(stats);
-        localStorage.setItem('saolei_stats', data);
+        try {
+            const data = JSON.stringify(stats);
+            localStorage.setItem('saolei_stats', data);
+        } catch (e) {
+            console.error('saveStats failed:', e);
+        }
     },
 
     async loadStats() {
         if (!this._ready) return null;
-        const data = localStorage.getItem('saolei_stats');
-        return data ? JSON.parse(data) : null;
+        try {
+            const data = localStorage.getItem('saolei_stats');
+            return data ? JSON.parse(data) : null;
+        } catch (e) {
+            console.error('loadStats failed:', e);
+            return null;
+        }
     },
 
     // === 对局记录 ===
     // Web 端只保留最近 20 局
     async saveGameRecord(record) {
         if (!this._ready) return;
-        const data = localStorage.getItem('saolei_history');
-        let history = data ? JSON.parse(data) : [];
-        history.unshift(record);
-        if (history.length > 20) history = history.slice(0, 20);
-        localStorage.setItem('saolei_history', JSON.stringify(history));
+        try {
+            const data = localStorage.getItem('saolei_history');
+            let history = data ? JSON.parse(data) : [];
+            history.unshift(record);
+            if (history.length > 20) history = history.slice(0, 20);
+            localStorage.setItem('saolei_history', JSON.stringify(history));
+        } catch (e) {
+            console.error('saveGameRecord failed:', e);
+        }
     },
 
     async loadGameHistory(limit = 20, offset = 0) {
         if (!this._ready) return [];
-        const data = localStorage.getItem('saolei_history');
-        const history = data ? JSON.parse(data) : [];
-        return history.slice(offset, offset + limit);
+        try {
+            const data = localStorage.getItem('saolei_history');
+            const history = data ? JSON.parse(data) : [];
+            return history.slice(offset, offset + limit);
+        } catch (e) {
+            console.error('loadGameHistory failed:', e);
+            return [];
+        }
     },
 
     async deleteGameHistory() {
-        localStorage.removeItem('saolei_history');
+        try {
+            localStorage.removeItem('saolei_history');
+        } catch (e) {
+            console.error('deleteGameHistory failed:', e);
+        }
     }
 };
 
