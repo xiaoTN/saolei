@@ -4,7 +4,7 @@
   "description": "多边形扫雷移动端",
   "main": "index.js",
   "scripts": {
-    "build": "echo 'No build step needed' && exit 0",
+    "build": "./scripts/sync-assets.sh",
     "sync": "npx cap sync",
     "android": "npx cap open android",
     "ios": "npx cap open ios"
