@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>多边形扫雷</title>
+    <link rel="stylesheet" href="../../style.css">
+    <style>
+        /* App 专用样式调整 */
+        body {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💣 多边形扫雷</h1>
+
+        <div class="settings">
+            <div class="shape-row">
+                <button class="side-btn" data-sides="3" onclick="selectSides(3)">3边</button>
+                <button class="side-btn selected" data-sides="4" onclick="selectSides(4)">4边</button>
+                <button class="side-btn" data-sides="6" onclick="selectSides(6)">6边</button>
+                <button class="side-btn" data-sides="8" onclick="selectSides(8)">8+4</button>
+            </div>
+            <div class="difficulty-row">
+                <button class="diff-btn" data-diff="easy"   onclick="selectDifficulty('easy')">简单</button>
+                <button class="diff-btn selected" data-diff="medium" onclick="selectDifficulty('medium')">中等</button>
+                <button class="diff-btn" data-diff="hard"   onclick="selectDifficulty('hard')">困难</button>
+                <button class="diff-btn" data-diff="hell"   onclick="selectDifficulty('hell')">地狱</button>
+                <button class="diff-btn" data-diff="custom" onclick="selectDifficulty('custom')">自定义</button>
+            </div>
+            <div class="custom-settings" id="customSettings" style="display:none">
+                <div class="setting-item slider-item">
+                    <label>行数: <span id="rows-val">10</span></label>
+                    <input type="range" id="rows" value="10" min="3" max="100"
+                           oninput="document.getElementById('rows-val').textContent=this.value; previewBoardSize()">
+                </div>
+                <div class="setting-item slider-item">
+                    <label>列数: <span id="cols-val">10</span></label>
+                    <input type="range" id="cols" value="10" min="3" max="100"
+                           oninput="document.getElementById('cols-val').textContent=this.value; previewBoardSize()">
+                </div>
+                <div class="setting-item slider-item">
+                    <label>雷数: <span id="mines-val">20</span></label>
+                    <input type="range" id="mines" value="20" min="1" max="2500"
+                           oninput="document.getElementById('mines-val').textContent=this.value; previewMineCount()">
+                </div>
+            </div>
+            <button onclick="initGame()">开始游戏</button>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">格子数: <span id="cellCount">64</span></div>
+            <div class="status-item">雷占比: <span id="mineRatio">—</span></div>
+            <div class="status-item">标记: <span id="flagProgress">0</span> / <span id="totalMinesDisplay">10</span></div>
+            <div class="status-item">用时: <span id="timer">0</span>秒</div>
+        </div>
+
+        <div class="game-area">
+            <div class="board-viewport" id="boardViewport">
+                <div class="game-board" id="board"></div>
+            </div>
+        </div>
+
+        <div class="message" id="message"></div>
+
+        <div class="tips">单击标记地雷 🚩，右键 / 长按打开格子</div>
+    </div>
+
+    <!-- 加载顺序：platform → storage → haptics → geometry → renderer → game -->
+    <script src="../../shared/platform.js"></script>
+    <script src="../../shared/storage.js"></script>
+    <script src="../../shared/haptics.js"></script>
+    <script src="../../geometry.js"></script>
+    <script src="../../renderer.js"></script>
+    <script src="../../game.js"></script>
+</body>
+</html>
