@@ -49,6 +49,8 @@ const StorageAdapter = {
                 console.log('SQLite initialized');
             } catch (e) {
                 console.warn('SQLite init failed, fallback to localStorage:', e);
+                this._isApp = false;
+                this._sqlite = null;
             }
         }
         this._ready = true;
