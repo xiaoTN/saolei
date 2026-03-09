@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>API 测试 - Canvas 渲染器</title>
+    <style>
+        body {
+            margin: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Canvas 渲染器 API 测试</h1>
+    <div id="results"></div>
+    <div id="board" style="margin-top: 20px; border: 2px solid #333;"></div>
+
+    <script>
+        // Mock game globals
+        let sides = 4;
+        let rows = 10;
+        let cols = 10;
+        let cellSize = 40;
+        let gameOver = false;
+        let revealed = {};
+        let flagged = {};
+        const NUM_COLORS = {
+            1: '#4a9eff', 2: '#2ed573', 3: '#ff4757',
+            4: '#a55eea', 5: '#ffa502', 6: '#1dd1a1',
+            7: '#ff6b81', 8: '#70a1ff',
+        };
+
+        function handleClick(row, col) {}
+        function handleRightClick(e, row, col) {}
+        function handleTouchStart(e, row, col) {}
+        function handleTouchEnd(e, row, col) {}
+        function handleTouchCancel(row, col) {}
+
+        const results = [];
+
+        function test(name, fn) {
+            try {
+                fn();
+                results.push({ name, pass: true });
+            } catch (error) {
+                results.push({ name, pass: false, error: error.message });
+            }
+        }
+
+        function displayResults() {
+            const container = document.getElementById('results');
+            container.innerHTML = results.map(r =>
+                `<div class="test-result ${r.pass ? 'pass' : 'fail'}">
+                    ${r.pass ? '✅' : '❌'} ${r.name}
+                    ${r.error ? `<br><small>${r.error}</small>` : ''}
+                </div>`
+            ).join('');
+        }
+    </script>
+    <script src="geometry.js"></script>
+    <script src="renderer.js"></script>
+    <script>
+        // Test 1: createSVGBoard exists
+        test('createSVGBoard 函数存在', () => {
+            if (typeof createSVGBoard !== 'function') throw new Error('函数不存在');
+        });
+
+        // Test 2: setCellState exists
+        test('setCellState 函数存在', () => {
+            if (typeof setCellState !== 'function') throw new Error('函数不存在');
+        });
+
+        // Test 3: getSVGCell exists
+        test('getSVGCell 函数存在', () => {
+            if (typeof getSVGCell !== 'function') throw new Error('函数不存在');
+        });
+
+        // Test 4: Create board
+        test('创建棋盘', () => {
+            const boardEl = document.getElementById('board');
+            const { width, height } = getBoardSize(sides);
+            createSVGBoard(boardEl, width, height);
+            if (!boardEl.querySelector('canvas')) throw new Error('Canvas 未创建');
+        });
+
+        // Test 5: getSVGCell works
+        test('getSVGCell 返回格子', () => {
+            const cell = getSVGCell(0, 0);
+            if (!cell) throw new Error('格子不存在');
+            if (cell.row !== 0 || cell.col !== 0) throw new Error('格子坐标错误');
+        });
+
+        // Test 6: setCellState works
+        test('setCellState 更新格子状态', () => {
+            setCellState(0, 0, 'revealed', 1);
+            setCellState(1, 1, 'flagged');
+            setCellState(2, 2, 'mine');
+            // 如果没有抛出错误，就认为成功
+        });
+
+        // Test 7: Different cell types
+        test('支持不同多边形类型', () => {
+            const types = [3, 4, 6, 8];
+            for (const type of types) {
+                sides = type;
+                const verts = getCellVertices(type, 0, 0);
+                if (!verts || verts.length === 0) throw new Error(`${type} 边形顶点计算失败`);
+            }
+            sides = 4; // 重置
+        });
+
+        displayResults();
+
+        // 显示总结
+        const passCount = results.filter(r => r.pass).length;
+        console.log(`\n测试总结: ${passCount}/${results.length} 通过`);
+    </script>
+</body>
+</html>

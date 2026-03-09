@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Canvas 渲染器测试</title>
+    <style>
+        body {
+            margin: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        #status {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        #board {
+            border: 2px solid #333;
+            display: inline-block;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Canvas 渲染器测试</h1>
+    <div id="status">正在加载...</div>
+    <div id="board"></div>
+
+    <script>
+        // Mock game globals
+        let sides = 4;
+        let rows = 10;
+        let cols = 10;
+        let cellSize = 40;
+        let gameOver = false;
+        let revealed = {};
+        let flagged = {};
+        const NUM_COLORS = {
+            1: '#4a9eff', 2: '#2ed573', 3: '#ff4757',
+            4: '#a55eea', 5: '#ffa502', 6: '#1dd1a1',
+            7: '#ff6b81', 8: '#70a1ff',
+        };
+
+        // Mock game functions
+        function handleClick(row, col) {
+            document.getElementById('status').textContent = `点击: (${row}, ${col})`;
+            setCellState(row, col, 'revealed', Math.floor(Math.random() * 8) + 1);
+        }
+        function handleRightClick(e, row, col) {
+            e.preventDefault();
+            const key = `${row},${col}`;
+            if (flagged[key]) {
+                flagged[key] = false;
+                setCellState(row, col, 'normal');
+            } else {
+                flagged[key] = true;
+                setCellState(row, col, 'flagged');
+            }
+            document.getElementById('status').textContent = `标记: (${row}, ${col})`;
+        }
+        function handleTouchStart(e, row, col) {
+            // Touch handled in renderer
+        }
+        function handleTouchEnd(e, row, col) {
+            // Touch handled in renderer
+        }
+        function handleTouchCancel(row, col) {
+            // Touch handled in renderer
+        }
+    </script>
+    <script src="geometry.js"></script>
+    <script src="renderer.js"></script>
+    <script>
+        // Test
+        try {
+            const boardEl = document.getElementById('board');
+            const { width, height } = getBoardSize(sides);
+
+            console.log('Board size:', width, height);
+            createSVGBoard(boardEl, width, height);
+
+            document.getElementById('status').textContent =
+                `✅ Canvas 渲染器加载成功！棋盘大小: ${width}x${height}，格子数: ${Object.keys(cellDomMap).length}`;
+
+            // Test different cell types
+            setTimeout(() => {
+                setCellState(0, 0, 'revealed', 1);
+                setCellState(0, 1, 'revealed', 2);
+                setCellState(0, 2, 'revealed', 3);
+                setCellState(1, 0, 'flagged');
+                setCellState(1, 1, 'mine');
+                console.log('Test cells updated');
+            }, 100);
+
+        } catch (error) {
+            document.getElementById('status').textContent = `❌ 错误: ${error.message}`;
+            console.error('Error:', error);
+        }
+    </script>
+</body>
+</html>

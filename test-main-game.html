@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>主游戏测试</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>测试主游戏</h1>
+    <div id="status">正在测试...</div>
+
+    <!-- 加载顺序：platform → storage → haptics → geometry → renderer → game -->
+    <script src="shared/platform.js?v=20260308a"></script>
+    <script src="shared/storage.js?v=20260308a"></script>
+    <script src="shared/haptics.js?v=20260308a"></script>
+    <script src="geometry.js?v=20260225b"></script>
+    <script src="renderer.js?v=20260226a"></script>
+    <script src="game.js?v=20260309a"></script>
+
+    <script>
+        window.addEventListener('load', () => {
+            const status = document.getElementById('status');
+
+            try {
+                // 测试全局函数
+                if (typeof createSVGBoard !== 'function') throw new Error('createSVGBoard 未定义');
+                if (typeof setCellState !== 'function') throw new Error('setCellState 未定义');
+                if (typeof getSVGCell !== 'function') throw new Error('getSVGCell 未定义');
+                if (typeof initGame !== 'function') throw new Error('initGame 未定义');
+
+                status.innerHTML = '✅ 所有脚本加载成功！<br><a href="index.html">点击进入主游戏</a>';
+                status.style.color = 'green';
+            } catch (error) {
+                status.innerHTML = `❌ 错误: ${error.message}`;
+                status.style.color = 'red';
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

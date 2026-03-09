@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>简单 Canvas 测试</title>
+    <style>
+        body { margin: 20px; font-family: sans-serif; }
+        #board { border: 2px solid #333; }
+    </style>
+</head>
+<body>
+    <h1>Canvas 渲染器简单测试</h1>
+    <div id="status">测试中...</div>
+    <div id="board"></div>
+
+    <script>
+        // 最小化的 mock
+        let sides = 4;
+        let rows = 5;
+        let cols = 5;
+        let cellSize = 40;
+        let gameOver = false;
+        let revealed = {};
+        let flagged = {};
+        const NUM_COLORS = {
+            1: '#4a9eff', 2: '#2ed573', 3: '#ff4757',
+            4: '#a55eea', 5: '#ffa502', 6: '#1dd1a1',
+            7: '#ff6b81', 8: '#70a1ff',
+        };
+
+        function handleClick(row, col) {
+            console.log('Click:', row, col);
+            setCellState(row, col, 'revealed', Math.floor(Math.random() * 8) + 1);
+        }
+        function handleRightClick(e, row, col) {
+            e.preventDefault();
+            console.log('Right click:', row, col);
+            const key = `${row},${col}`;
+            flagged[key] = !flagged[key];
+            setCellState(row, col, flagged[key] ? 'flagged' : 'normal');
+        }
+        function handleTouchStart(e, row, col) {}
+        function handleTouchEnd(e, row, col) {}
+        function handleTouchCancel(row, col) {}
+    </script>
+    <script src="geometry.js"></script>
+    <script src="renderer.js"></script>
+    <script>
+        window.addEventListener('error', (e) => {
+            document.getElementById('status').innerHTML =
+                `<span style="color:red">❌ 错误: ${e.message}</span>`;
+        });
+
+        window.addEventListener('load', () => {
+            try {
+                const boardEl = document.getElementById('board');
+                const { width, height } = getBoardSize(sides);
+
+                console.log('Creating board:', width, height);
+                createSVGBoard(boardEl, width, height);
+
+                document.getElementById('status').innerHTML =
+                    `<span style="color:green">✅ Canvas 创建成功！大小: ${width}x${height}</span>`;
+
+                // 测试设置一些格子状态
+                setTimeout(() => {
+                    setCellState(0, 0, 'revealed', 1);
+                    setCellState(1, 1, 'flagged');
+                    setCellState(2, 2, 'mine');
+                    console.log('Test cells set');
+                }, 100);
+
+            } catch (error) {
+                document.getElementById('status').innerHTML =
+                    `<span style="color:red">❌ 错误: ${error.message}</span>`;
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
