@@ -622,6 +622,7 @@ let _isPanning = false;
     let lastPanX = 0, lastPanY = 0;
     let wheelDX = 0, wheelDY = 0;
     let wheelRAF = 0;
+    let touchPanRAF = 0;
     let wheelPanCleanupTimer = 0;
 
     function getViewport() { return document.getElementById('boardViewport'); }
@@ -748,12 +749,24 @@ let _isPanning = false;
         const vp = getViewport(), board = getBoard();
         if (!vp || !board) return;
         [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
-        applyTransform();
+        // 使用 RAF 节流，避免频繁重绘
+        if (!touchPanRAF) {
+            touchPanRAF = requestAnimationFrame(() => {
+                touchPanRAF = 0;
+                applyTransform();
+            });
+        }
     }
 
     function onTouchEnd() {
         if (!dragging) return;
         dragging = false;
+        // 确保最后一次 transform 被应用
+        if (touchPanRAF) {
+            cancelAnimationFrame(touchPanRAF);
+            touchPanRAF = 0;
+            applyTransform();
+        }
         getViewport()?.classList.remove('panning');
         if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
         else _isPanning = false;

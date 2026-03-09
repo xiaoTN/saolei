@@ -356,6 +356,9 @@ body {
     top: 50%;
     transform-origin: center center;
     will-change: transform;
+    /* GPU 加速 */
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 .game-board svg {
