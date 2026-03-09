@@ -57,6 +57,7 @@ let cellSize = 44;
 const SUPPORTED_SIDES = new Set([3, 4, 6, 8]);
 
 let currentDifficulty = 'medium';
+let gameStarted = false; // 游戏是否已开始（用于界面切换）
 
 // 各难度在不同边数下的预设 [rows, cols, mines]
 // 难度预设 [rows, cols, mines]
@@ -93,6 +94,60 @@ const DIFFICULTY_PRESETS = {
     },
 };
 
+// ─── 界面切换 ──────────────────────────────────────────────────
+
+function showStartScreen() {
+    document.getElementById('startScreen').classList.remove('hidden');
+    document.getElementById('gameScreen').classList.remove('active');
+    gameStarted = false;
+}
+
+function showGameScreen() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('gameScreen').classList.add('active');
+    gameStarted = true;
+}
+
+function startGame() {
+    initGame();
+    showGameScreen();
+    // 延迟居中棋盘，等待 DOM 更新
+    setTimeout(() => {
+        if (window._panCenter) window._panCenter();
+    }, 100);
+}
+
+function backToMenu() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    hideGameResult();
+    showStartScreen();
+}
+
+function restartGame() {
+    hideGameResult();
+    initGame();
+    setTimeout(() => {
+        if (window._panCenter) window._panCenter();
+    }, 100);
+}
+
+function showGameResult(won) {
+    const resultEl = document.getElementById('gameResult');
+    const iconEl = document.getElementById('resultIcon');
+    const textEl = document.getElementById('resultText');
+    const timeEl = document.getElementById('resultTime');
+    
+    iconEl.textContent = won ? '🎉' : '💥';
+    textEl.textContent = won ? '恭喜！你赢了！' : '游戏结束';
+    timeEl.textContent = `用时 ${timer} 秒`;
+    
+    resultEl.classList.add('show');
+}
+
+function hideGameResult() {
+    document.getElementById('gameResult').classList.remove('show');
+}
+
 // ─── 初始化 ────────────────────────────────────────────────────
 
 // 边数按钮选择
@@ -103,7 +158,7 @@ function selectSides(s) {
     });
     const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
     cellSize = sizeMap[sides] || 44;
-    if (firstClick) {
+    if (!gameStarted) {
         // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
         if (currentDifficulty !== 'custom') _applyDifficultyPreset(currentDifficulty);
         else previewBoardSize();
@@ -119,14 +174,14 @@ function selectDifficulty(diff) {
     const customEl = document.getElementById('customSettings');
     if (diff === 'custom') {
         customEl.style.display = 'flex';
-        if (firstClick) previewBoardSize();
+        if (!gameStarted) previewBoardSize();
     } else {
         customEl.style.display = 'none';
-        if (firstClick) _applyDifficultyPreset(diff);
+        if (!gameStarted) _applyDifficultyPreset(diff);
     }
 }
 
-// 将难度预设同步到滑动条并更新画布预览
+// 将难度预设同步到滑动条并更新预览信息
 function _applyDifficultyPreset(diff) {
     const preset = (DIFFICULTY_PRESETS[sides] || DIFFICULTY_PRESETS[4])[diff];
     if (!preset) return;
@@ -142,25 +197,42 @@ function _applyDifficultyPreset(diff) {
     document.getElementById('mines').value = m;
     document.getElementById('mines-val').textContent = m;
 
-    _buildBoard();
+    _updatePreviewInfo();
 }
 
-// 游戏未开始时，雷数滑动条变化时立即更新状态栏
+// 游戏未开始时，雷数滑动条变化时立即更新预览
 function previewMineCount() {
-    if (!firstClick) return;
+    if (gameStarted) return;
     totalMines = parseInt(document.getElementById('mines').value);
     mineCount = totalMines;
-    _updateStatusBar();
+    _updatePreviewInfo();
 }
 
-// 游戏未开始时，边数/行列滑动条变化时立即预览画布
+// 游戏未开始时，边数/行列滑动条变化时立即更新预览
 function previewBoardSize() {
-    if (!firstClick) return; // 游戏进行中，不预览
+    if (gameStarted) return;
 
     rows = parseInt(document.getElementById('rows').value);
     cols = parseInt(document.getElementById('cols').value);
 
-    _buildBoard();
+    _updatePreviewInfo();
+}
+
+function _updatePreviewInfo() {
+    // 计算总格子数
+    let totalCells;
+    if (sides === 8) {
+        totalCells = rows * cols + (rows - 1) * (cols - 1);
+    } else {
+        totalCells = rows * cols;
+    }
+    
+    const ratioNum = totalCells > 0 ? (totalMines / totalCells * 100) : 0;
+    
+    document.getElementById('cellCount').textContent = totalCells;
+    const ratioEl = document.getElementById('mineRatio');
+    ratioEl.textContent = ratioNum.toFixed(1) + '%';
+    ratioEl.className = ratioNum < 15 ? 'easy' : ratioNum < 25 ? 'medium' : 'hard';
 }
 
 function initGame() {
@@ -207,8 +279,6 @@ function initGame() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
     document.getElementById('timer').textContent = '0';
-    document.getElementById('message').className = 'message';
-    document.getElementById('message').textContent = '';
     _setSettingsLocked(false);
 
     _buildBoard();
@@ -232,7 +302,6 @@ function _buildBoard() {
 
     const totalCells = allCells.length;
     totalCellsCount = totalCells;
-    document.getElementById('cellCount').textContent = totalCells;
 
     // 校正雷数上限
     const maxMinesAllowed = Math.floor(totalCells * 0.8);
@@ -243,7 +312,7 @@ function _buildBoard() {
         document.getElementById('mines-val').textContent = String(mineCount);
     }
 
-    _updateStatusBar();
+    _updateGameStatus();
 
     // 初始化格子数据（全部为 0，雷在首次点击后放置）
     for (const [r, c] of allCells) {
@@ -253,6 +322,12 @@ function _buildBoard() {
 
     createSVGBoard(boardEl, width, height, allCells);
     if (window._panCenter) window._panCenter();
+}
+
+function _updateGameStatus() {
+    const flaggedCount = totalMines - mineCount;
+    document.getElementById('flagProgress').textContent = flaggedCount;
+    document.getElementById('totalMinesDisplay').textContent = totalMines;
 }
 
 // ─── 核心逻辑 ──────────────────────────────────────────────────
@@ -297,19 +372,6 @@ function _countAdjacentMines(row, col) {
         .filter(([r, c]) => board[`${r},${c}`] === -1).length;
 }
 
-function _updateStatusBar() {
-    const totalCells = totalCellsCount;
-    const ratioNum = totalCells > 0 ? totalMines / totalCells * 100 : 0;
-    const flaggedCount = totalMines - mineCount;
-
-    const ratioEl = document.getElementById('mineRatio');
-    ratioEl.textContent = ratioNum.toFixed(1) + '%';
-    ratioEl.className = ratioNum < 15 ? 'easy' : ratioNum < 25 ? 'medium' : 'hard';
-
-    document.getElementById('flagProgress').textContent = flaggedCount;
-    document.getElementById('totalMinesDisplay').textContent = totalMines;
-}
-
 function startTimer() {
     if (!timerInterval) {
         timerInterval = setInterval(() => {
@@ -347,7 +409,7 @@ function handleClick(row, col) {
                         gameOver = true;
                         clearInterval(timerInterval);
                         vibrate([100, 50, 100]);
-                        _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+                        showGameResult(false);
                         return;
                     } else {
                         revealCell(r, c);
@@ -376,7 +438,7 @@ function handleClick(row, col) {
         mineCount--;
     }
     vibrate(15);
-    _updateStatusBar();
+    _updateGameStatus();
 }
 
 // 右键单击 / 长按：打开格子（reveal）
@@ -407,7 +469,7 @@ function handleRightClick(e, row, col) {
                         });
                         gameOver = true;
                         clearInterval(timerInterval);
-                        _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+                        showGameResult(false);
                         return;
                     } else {
                         revealCell(r, c);
@@ -432,7 +494,7 @@ function handleRightClick(e, row, col) {
         gameOver = true;
         clearInterval(timerInterval);
         vibrate([100, 50, 100]);
-        _showMessage('💥 游戏结束！你踩到雷了', 'lose');
+        showGameResult(false);
         return;
     }
 
@@ -531,19 +593,14 @@ function checkWin() {
         mineLocations.forEach(([r, c]) => {
             if (!flagged[`${r},${c}`]) setCellState(r, c, 'flagged');
         });
-        _showMessage(`🎉 恭喜！你赢了！用时 ${timer} 秒`, 'win');
+        showGameResult(true);
     }
-}
-
-function _showMessage(text, type) {
-    const el = document.getElementById('message');
-    el.textContent = text;
-    el.className = `message ${type}`;
 }
 
 function _setSettingsLocked(locked) {
     ['rows', 'cols', 'mines'].forEach(id => {
-        document.getElementById(id).disabled = locked;
+        const el = document.getElementById(id);
+        if (el) el.disabled = locked;
     });
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.disabled = locked;
@@ -573,10 +630,10 @@ let _isPanning = false;
     function clampPan(vp, board, nx, ny) {
         const vpW = vp.clientWidth,  vpH = vp.clientHeight;
         const bW  = board.offsetWidth, bH = board.offsetHeight;
-        const minX = bW > vpW ? -(bW - vpW) : 0;
-        const minY = bH > vpH ? -(bH - vpH) : 0;
-        const maxX = bW > vpW ? 0 : vpW - bW;
-        const maxY = bH > vpH ? 0 : vpH - bH;
+        const minX = bW > vpW ? -(bW - vpW) / 2 : 0;
+        const minY = bH > vpH ? -(bH - vpH) / 2 : 0;
+        const maxX = bW > vpW ? (bW - vpW) / 2 : 0;
+        const maxY = bH > vpH ? (bH - vpH) / 2 : 0;
         return [
             Math.min(maxX, Math.max(minX, nx)),
             Math.min(maxY, Math.max(minY, ny)),
@@ -585,7 +642,10 @@ let _isPanning = false;
 
     function applyTransform() {
         const board = getBoard();
-        if (board) board.style.transform = `translate(${panX}px, ${panY}px)`;
+        if (board) {
+            // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移
+            board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px)`;
+        }
     }
 
     function _scheduleWheelPanClassClear() {
@@ -631,7 +691,6 @@ let _isPanning = false;
     }
 
     // ── 鼠标（桌面端）──
-    // mousedown 在视口捕获起点，move/up 挂在 document 确保拖出边界也能跟踪
     function onMouseDown(e) {
         if (e.button !== 0) return;
         dragging = true;
@@ -661,10 +720,6 @@ let _isPanning = false;
     }
 
     // ── 触摸（移动端）──
-    // 触摸事件与格子上的 touchstart/touchend 游戏逻辑共存：
-    // 视口上的 touchstart 仅记录起点，不阻止冒泡；
-    // touchmove 超过阈值后才进入平移模式并 preventDefault 阻止页面滚动；
-    // 平移状态下 touchend 会被格子的 handleTouchEnd 检测到 _isPanning 而忽略。
     function onTouchStart(e) {
         if (e.touches.length !== 1) return;
         dragging = true;
@@ -722,9 +777,9 @@ let _isPanning = false;
     function centerPan() {
         const vp = getViewport(), board = getBoard();
         if (!vp || !board) return;
-        const targetX = (vp.clientWidth - board.offsetWidth) / 2;
-        const targetY = (vp.clientHeight - board.offsetHeight) / 2;
-        [panX, panY] = clampPan(vp, board, targetX, targetY);
+        // 棋盘居中
+        panX = 0;
+        panY = 0;
         applyTransform();
     }
 
@@ -734,6 +789,6 @@ let _isPanning = false;
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
-// 初始化时应用默认难度（触发预设同步和画布预览）
+// 初始化时应用默认难度
 selectDifficulty('medium');
-initGame();
+_updatePreviewInfo();
