@@ -647,9 +647,6 @@ let _isPanning = false;
             // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移
             board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px)`;
         }
-        // Canvas 渲染器：更新偏移并重绘
-        if (window._setPanOffset) window._setPanOffset(panX, panY);
-        if (window._renderCanvas) window._renderCanvas();
     }
 
     function _scheduleWheelPanClassClear() {
