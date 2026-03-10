@@ -79,11 +79,12 @@ const DIFFICULTY_PRESETS = {
         hell:   [100, 100, 2500],// 10000格，密度 25.0%
     },
     5: {
-        // Cairo 五边形镶嵌，5邻居
-        easy:   [8,  8,  12],    // 64格，密度 18.8%
-        medium: [12, 12,  35],   // 144格，密度 24.3%
-        hard:   [16, 16,  70],   // 256格，密度 27.3%
-        hell:   [100, 100, 2500],// 10000格，密度 25.0%
+        // Cairo 五边形镶嵌，每组4个五边形
+        // rows/cols 是"组"的数量，实际格子数 = rows*cols*4
+        easy:   [5,  5,  20],    // 100格，密度 20%
+        medium: [8,  8,  51],    // 256格，密度 20%
+        hard:   [10, 10, 100],   // 400格，密度 25%
+        hell:   [25, 25, 1250],  // 2500格，密度 50%
     },
     6: {
         // 六边形6邻居，信息量略少于正方形8邻居，密度略低
@@ -252,6 +253,9 @@ function _updatePreviewInfo() {
     } else if (sides === 36) {
         // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
         totalCells = rows * cols + rows * cols + rows + cols;
+    } else if (sides === 5) {
+        // Cairo 五边形：每组4个，共 rows*cols 组
+        totalCells = rows * cols * 4;
     } else {
         totalCells = rows * cols;
     }
