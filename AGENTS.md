@@ -110,6 +110,14 @@ node --check game.js renderer.js geometry.js
 - 拖拽/双指滑动平移、默认居中是否正常
 - 踩雷后雷格 hover 颜色不变
 
+## 测试用例（重要）
+
+所有执行过的测试用例必须记录在 `TEST-CASES.md` 文件中。
+
+- 每次测试后发现的问题和修复方案都要添加到测试用例文件
+- 测试用例按功能模块分类，包含：测试步骤、预期结果、关联修复
+- 发布前按 `TEST-CASES.md` 清单逐项验证
+
 ## 文档同步规则（重要）
 
 `CLAUDE.md` 与 `AGENTS.md` 必须保持相同内容，用于 Claude Code / Codex 共用上下文。
