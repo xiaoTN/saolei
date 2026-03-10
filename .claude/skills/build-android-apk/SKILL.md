@@ -62,7 +62,7 @@ mobile/android/app/build/outputs/apk/release/app-release.apk
 ## 完整命令（一键打包+安装）
 
 ```bash
-cd /Users/xiaotn/saolei/mobile && \
+cd mobile && \
 npm run build && \
 npm run sync && \
 cd android && ./gradlew assembleRelease && \
