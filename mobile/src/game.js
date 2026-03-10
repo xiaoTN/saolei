@@ -835,6 +835,11 @@ let _isPanning = false;
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
+// 初始化震动模块
+if (window.HapticsAdapter) {
+    HapticsAdapter.init();
+}
+
 // 初始化时应用默认设置
 selectSides(4);
 selectDifficulty('medium');
