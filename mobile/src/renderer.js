@@ -46,9 +46,10 @@ function createSVGBoard(boardEl, width, height, allCells = null) {
         const key = `${row},${col}`;
         cellStates[key] = { state: 'normal', value: '' };
 
-        // 扩展网格中的辅助连接格（8+4 的小正方形）使用更小字号
-        const isSmallCell = (sides === 8 && row % 2 === 1);
-        const fontSize = isSmallCell ? 8 : (sides === 3 ? 11 : 13);
+        // 扩展网格中的辅助连接格（8+4 的小正方形 / 36 的三角形）使用更小字号
+        const isSmallCell = (sides === 8 && row % 2 === 1) || (sides === 36 && (row % 2 === 1 || col % 2 === 1));
+        // Cairo 五边形使用稍小字体
+        const fontSize = isSmallCell ? 9 : (sides === 3 ? 11 : sides === 5 ? 12 : 13);
 
         const cellMeta = { key, row, col, fontSize };
         cellDomMap[key] = cellMeta;
