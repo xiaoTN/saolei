@@ -237,6 +237,118 @@ function octSqBoardSize() {
     };
 }
 
+// ─── 三六混合镶嵌（36边）────────────────────────────────────────
+// 扩展网格坐标 (gr, gc)：
+//   六边形：gr偶, gc偶
+//   三角形（尖朝上）：gr偶, gc奇
+//   三角形（尖朝下）：gr奇, gc偶
+//   无效：gr奇, gc奇
+// 有效格判断：gr%2===0 || gc%2===0
+
+function triHexCellType(gr, gc) {
+    if (gr % 2 === 0 && gc % 2 === 0) return 'hex';
+    if (gr % 2 === 1) return 'triDown';
+    return 'triUp'; // gc % 2 === 1
+}
+
+function triHexCenter(gr, gc) {
+    const R = cellSize / 2;
+    const sq3 = Math.sqrt(3);
+    const stepX = R * sq3 / 2;
+    const stepY = R * 1.5;
+    return [gc * stepX + R, gr * stepY + R];
+}
+
+function triHexVertices(gr, gc) {
+    const [cx, cy] = triHexCenter(gr, gc);
+    const R = cellSize / 2;
+    const type = triHexCellType(gr, gc);
+
+    if (type === 'hex') {
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+            const a = Math.PI / 180 * (60 * i - 30);
+            pts.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]);
+        }
+        return pts;
+    }
+
+    // 三角形
+    const a = R; // 边长
+    const h = a * Math.sqrt(3) / 2;
+    if (type === 'triUp') {
+        return [
+            [cx, cy - h * 2/3],
+            [cx + a/2, cy + h/3],
+            [cx - a/2, cy + h/3]
+        ];
+    } else { // triDown
+        return [
+            [cx - a/2, cy - h/3],
+            [cx + a/2, cy - h/3],
+            [cx, cy + h * 2/3]
+        ];
+    }
+}
+
+function triHexAllCells() {
+    const cells = [];
+    const grMax = 2 * rows;
+    const gcMax = 2 * cols;
+    for (let gr = 0; gr < grMax; gr++) {
+        for (let gc = 0; gc < gcMax; gc++) {
+            if (gr % 2 === 0 || gc % 2 === 0) {
+                cells.push([gr, gc]);
+            }
+        }
+    }
+    return cells;
+}
+
+function triHexNeighbors(gr, gc) {
+    const nb = [];
+    const grMax = 2 * rows;
+    const gcMax = 2 * cols;
+    const type = triHexCellType(gr, gc);
+
+    // 边界内判断
+    const valid = (r, c) => r >= 0 && r < grMax && c >= 0 && c < gcMax && (r % 2 === 0 || c % 2 === 0);
+
+    if (type === 'hex') {
+        // 六边形：6个三角形（共享边）+ 6个六边形（共享顶点）
+        const triOffsets = [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]];
+        const hexOffsets = [[-2,0],[2,0],[0,-2],[0,2],[-2,2],[2,-2]];
+        for (const [dr, dc] of [...triOffsets, ...hexOffsets]) {
+            const nr = gr + dr, nc = gc + dc;
+            if (valid(nr, nc)) nb.push([nr, nc]);
+        }
+    } else {
+        // 三角形：3个六边形（共享边）+ 6个三角形（共享顶点）
+        // 偏移表根据三角形朝向不同
+        const offsets = type === 'triUp'
+            ? [[-1,0],[0,-1],[0,1],[-1,-1],[-1,1],[0,-2],[0,2],[1,0],[1,-1],[1,1]]
+            : [[1,0],[0,-1],[0,1],[1,-1],[1,1],[0,-2],[0,2],[-1,0],[-1,-1],[-1,1]];
+        for (const [dr, dc] of offsets) {
+            const nr = gr + dr, nc = gc + dc;
+            if (valid(nr, nc)) nb.push([nr, nc]);
+        }
+    }
+    return nb;
+}
+
+function triHexBoardSize() {
+    const R = cellSize / 2;
+    const sq3 = Math.sqrt(3);
+    const stepX = R * sq3 / 2;
+    const stepY = R * 1.5;
+    const grMax = 2 * rows;
+    const gcMax = 2 * cols;
+    return {
+        width: Math.ceil(gcMax * stepX + R * 2) + 4,
+        height: Math.ceil(grMax * stepY + R * 2) + 4,
+    };
+}
+
 // ─── 统一接口 ─────────────────────────────────────────────────
 
 function getCellVertices(sides, row, col) {
@@ -244,6 +356,7 @@ function getCellVertices(sides, row, col) {
     if (sides === 4) return sqVertices(row, col);
     if (sides === 6) return hexVertices(row, col);
     if (sides === 8) return octSqVertices(row, col); // row,col 是扩展网格坐标 gr,gc
+    if (sides === 36) return triHexVertices(row, col);
 }
 
 function getCellCenter(sides, row, col) {
@@ -253,9 +366,10 @@ function getCellCenter(sides, row, col) {
     return [x, y];
 }
 
-// 返回所有有效格子坐标列表（sides===8 时用扩展网格）
+// 返回所有有效格子坐标列表（sides===8/36 时用扩展网格）
 function getAllCells(sides) {
     if (sides === 8) return octSqAllCells();
+    if (sides === 36) return triHexAllCells();
     const cells = [];
     const actualRows = getActualRows(sides);
     const actualCols = getActualCols(sides);
@@ -271,9 +385,10 @@ function getNeighbors(sides, row, col) {
     else if (sides === 4) nb = sqNeighbors(row, col);
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);
+    else if (sides === 36) nb = triHexNeighbors(row, col);
     else nb = [];
-    // sides===8 的边界检查已在各自函数内完成
-    if (sides !== 8) {
+    // sides===8/36 的边界检查已在各自函数内完成
+    if (sides !== 8 && sides !== 36) {
         const actualCols = getActualCols(sides);
         nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);
     }
@@ -285,5 +400,6 @@ function getBoardSize(sides) {
     if (sides === 4) return sqBoardSize();
     if (sides === 6) return hexBoardSize();
     if (sides === 8) return octSqBoardSize();
+    if (sides === 36) return triHexBoardSize();
     return { width: 400, height: 400 };
 }
