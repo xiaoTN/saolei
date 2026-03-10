@@ -238,381 +238,329 @@ function octSqBoardSize() {
 }
 
 // ─── 三六混合镶嵌（36边）────────────────────────────────────────
-// Trihexagonal tiling (3.6.3.6)：六边形和三角形交替排列，共享边
+// Trihexagonal tiling (3.6.3.6 / kagome)
 //
-// 几何：pointy-top 六边形，边长 a = cellSize/2
-//   六边形宽 = √3·a，高 = 2a
-//   行间距（垂直）= 1.5a，列间距（水平）= √3·a
-//   奇数六边形行向右偏移 √3·a/2
+// 关键性质：
+//   - 六边形之间不直接共享边，相邻六边形之间总是隔着一个三角形
+//   - 每个六边形有 6 个三角形邻居，每个三角形有 3 个六边形邻居
+//   - 在每个顶点处：三角形-六边形-三角形-六边形（(3.6)^2）
 //
-// 坐标系：六边形用偏移坐标 (hr, hc)，三角形用 (type, hr, hc) 编码为扩展坐标 (gr, gc)
-//   六边形：gr = 3*hr,     gc = 2*hc（偶数行），gc = 2*hc+1（奇数行）
-//   朝上三角形 ▲：gr = 3*hr-1, gc = 2*hc（偶数行）/ 2*hc+1（奇数行）
-//     — 位于六边形 (hr, hc) 的正上方，由 (hr,hc) 的上两个顶点和上方六边形的底部顶点构成
-//   朝下三角形 ▼：gr = 3*hr+1, gc = 2*hc（偶数行）/ 2*hc+1（奇数行）
-//     — 位于六边形 (hr, hc) 的正下方
+// 几何（边长 a = cellSize/2，pointy-top 六边形）：
+//   六边形中心间距（通过三角形相连）：
+//     两六边形中心距 = √3·a + a·√3 = √3·a·... 通过轴坐标推导：
+//     六边形轴坐标 (q, r)，中心：cx = q·√3a，cy = (2r + q)·a
+//     六边形宽 = √3·a（水平，col 步进）
+//     列步进 cx_step = √3·a，行步进 cy_step = 2a（不考虑斜向偏移）
 //
-// 实际采用更简洁的方法：直接基于六边形顶点构造三角形
+//   六边形轴坐标 (r, q) 中心（加 padding 偏移）：
+//     cx = q · √3·a + pad
+//     cy = (2r + q) · a + pad
+//
+// 扩展坐标系：
+//   六边形 (r, q) → (gr, gc) = (r, q)，坐标直接是轴坐标
+//   三角形（尖朝右 ▶，位于六边形 (r,q) 右方）：
+//     gr = r,  gc = cols + r · (cols+1) + q  （用不同范围避免与六边形冲突）
+//
+// 更简洁方案：使用 type + index 组合 key，在 game.js 中以 `${gr},${gc}` 存储，
+// 六边形 (r,q) → gr = r, gc = q（负范围 q 不存在，q∈[0,cols)，r∈[0,rows)）
+// 三角形用 gr = rows + ..., gc = ... 偏移到不重叠范围
+//
+// 最终选择的方案（参考 Cairo/octSq 的扩展网格思路）：
+//   将六边形和三角形映射到二维网格，使用不同的 (gr, gc) 范围
+//
+// 六边形 (r, q)：r∈[0,rows), q∈[0,cols)
+//   → gr = r, gc = q
+// 三角形（6种方向，但由3个六边形共享，所以每个三角形只存一次）：
+//   每个三角形由3个六边形的相邻关系唯一确定。
+//   六边形(r,q)的6个三角形邻居方向（轴坐标中）：
+//     方向0(右):  tri_A(r,q)   ← 由(r,q),(r,q+1),(r-1,q+1)围成
+//     方向1(右下):tri_B(r,q)   ← 由(r,q),(r+1,q),(r,q+1)围成... 不对
+//   在 3.6.3.6 中，六边形轴坐标下的三角形：
+//     ▶型（尖朝右）：由(r,q),(r-1,q+1),(r,q+1) 三个六边形围成？不对，三角形只与3个六边形各共一条边
+//
+// ────────────────────────────────────────────────────────────────
+// 采用最直接的实现：
+// 六边形轴坐标 (r, q)，中心 cx = q·W + pad，cy = (2r+q)·a + pad（W=√3a, a=cellSize/2）
+// 六边形有6个三角形邻居，用偏移 (dr,dq,type) 唯一标识每个三角形
+//
+// 三角形有两种：
+//   ▲（尖朝上）：顶点分别是 3个六边形的顶点
+//   ▼（尖朝下）：顶点分别是 3个六边形的顶点
+//
+// 在轴坐标中，每个三角形由一个"锚"六边形和方向标记：
+//   类型A（▲）：右上方三角形，锚=(r,q)，连接(r,q)+(r-1,q)+(r-1,q+1)
+//   类型B（▼）：右下方三角形，锚=(r,q)，连接(r,q)+(r,q+1)+(r-1,q+1)... 需验证
+//
+// ────────────────────────────────────────────────────────────────
+// 实用方案：直接从具体坐标推导，用脚本验证顶点重合
+//
+// 设 a = cellSize/2（六边形外接圆半径 = 边长），pad = a
+// pointy-top 六边形顶点（中心(cx,cy)，从正上顶点开始逆时针）：
+//   i=0: (cx,       cy-a)      — 正上
+//   i=1: (cx+W/2,   cy-a/2)    — 右上  (W = √3a)
+//   i=2: (cx+W/2,   cy+a/2)    — 右下
+//   i=3: (cx,       cy+a)      — 正下
+//   i=4: (cx-W/2,   cy+a/2)    — 左下
+//   i=5: (cx-W/2,   cy-a/2)    — 左上
+//
+// 六边形(0,0) 中心(pad, pad)=(a, a)，顶点：
+//   0:(a, 0), 1:(a+W/2, a/2), 2:(a+W/2, 3a/2), 3:(a, 2a), 4:(a-W/2, 3a/2), 5:(a-W/2, a/2)
+//
+// 六边形(0,1) 中心: q=1时 cx=W+a, cy=(0+1)a+a=2a → (W+a, 2a)，顶点：
+//   0:(W+a, a), 1:(W+a+W/2, 3a/2), 2:(W+a+W/2, 5a/2), 3:(W+a, 3a), 4:(W+a-W/2, 5a/2), 5:(W+a-W/2, 3a/2)
+//   = (W+a, a), (3W/2+a, 3a/2), (3W/2+a, 5a/2), (W+a, 3a), (W/2+a, 5a/2), (W/2+a, 3a/2)
+//
+// 六边形(1,0) 中心: r=1, q=0 → cx=a, cy=(2+0)a+a=3a → (a, 3a)，顶点：
+//   0:(a, 2a), 1:(W/2+a, 5a/2), 2:(W/2+a, 7a/2), 3:(a, 4a), 4:(a-W/2, 7a/2), 5:(a-W/2, 5a/2)
+//
+// 六边形(-1,1) 中心: r=-1, q=1 → cx=W+a, cy=(-2+1)a+a=0 → (W+a, 0)，顶点：
+//   0:(W+a, -a)... 负坐标，在有效范围外
+//
+// 六边形(0,0) 的右上顶点1 = (a+W/2, a/2)
+// 六边形(0,1) 的左上顶点5 = (W/2+a, 3a/2)... 不重合 (a+W/2, a/2) vs (W/2+a, 3a/2)
+// 说明这两个六边形之间有三角形！
+//
+// 三角形顶点 = {(0,0)的顶点1, (0,1)的顶点5, 某个交汇点}
+// 等等，(0,0)的顶点1 = (a+W/2, a/2) 和 (0,1)的顶点5 = (W/2+a, 3a/2) 是同一个 x 坐标，但 y 不同
+// 这两个点之间的距离 = a（正好一条边的长度），这就是它们共享的三角形的一条边！
+//
+// 三角形的第三顶点：
+//   边 (a+W/2, a/2)→(a+W/2, 3a/2) 是竖直的，长度 = a ✓（等边三角形边长）
+//   等边三角形第三顶点在右侧（朝右）：
+//   第三顶点 = ((a+W/2) + W/2, (a/2+3a/2)/2) = (a+W, a)
+//
+// 验证第三顶点 (a+W, a)：
+//   到第一顶点距离 = √((W/2)²+(a/2)²) = √(3a²/4+a²/4) = a ✓
+//   到第二顶点距离 = √((W/2)²+(a/2)²) = a ✓
+//
+// 第三顶点 (a+W, a) = (a+√3a, a)。这是哪个六边形的顶点？
+// 六边形(0,1) 中心 (W+a, 2a)，顶点0 = (W+a, a) ✓！
+//
+// 所以三角形 T1（在 (0,0) 和 (0,1) 之间）的顶点是：
+//   (0,0)的顶点1 = (a+W/2, a/2)
+//   (0,1)的顶点5 = (a+W/2, 3a/2)
+//   (0,1)的顶点0 = (a+W, a)
+//
+// 这个三角形由哪3个六边形共享？
+//   边(a+W/2,a/2)→(a+W,a)：这是(0,1)的边5→0（左上边），由(0,1)贡献
+//   边(a+W,a)→(a+W/2,3a/2)：这是(0,1)的边0→...不对，应该是另一个六边形
+//   边(a+W/2,a/2)→(a+W/2,3a/2)：这是(0,0)的边1→2（右边），由(0,0)贡献
+//
+// 第三条边(a+W,a)→(a+W/2,3a/2) 属于谁？检查各六边形的顶点：
+//   r=-1,q=1: 中心(W+a,-2a+a+a)=(W+a,0)... cy=(-2+1)a+a=0 → 中心(W+a, 0)
+//   顶点1=(W+a+W/2, -a/2+0)=(3W/2+a, -a/2)，顶点2=(3W/2+a, a/2),...顶点0=(W+a,-a)
+//   顶点5=(W/2+a, -a/2)，顶点4=(W/2+a, a/2) → (a+W/2, a/2)！= T1的第一顶点
+//
+//   r=-1,q=1 的顶点4 = (W/2+a, a/2) = (a+W/2, a/2) ✓（T1的第一顶点）
+//   r=-1,q=1 的顶点3 = (W+a, a) ✓（T1的第三顶点）
+//   r=-1,q=1 的边3→4(正下→左下): (W+a, a)→(W/2+a, a/2) → 这就是 T1 的第三条边！
+//
+// 结论：T1 的三个共享六边形是 (0,0)，(0,1)，(-1,1)
+//   - (0,0) 贡献边1→2 = (a+W/2,a/2)→(a+W/2,3a/2)（右边）
+//   - (0,1) 贡献边5→0 = (a+W/2,3a/2)→(a+W,a)（左上边）  ← 注意这里顺序
+//   - (-1,1) 贡献边3→4 = (a+W,a)→(a+W/2,a/2)（正下→左下）
+//
+// 六边形轴坐标中，T1 位于 (r=0,q=0)、(r=0,q=1)、(r=-1,q=1) 之间
+// 这种三角形（▶ 尖朝右）：由(r,q),(r,q+1),(r-1,q+1) 围成
+//
+// 对称地，另一种三角形（▶ 尖朝左）：由(r,q),(r+1,q),(r+1,q-1) 围成
+// 但这等价于：由(r',q'),(r'-1,q'),(r',q'-1) 围成（令r'=r+1，q'=q）
+//
+// 每种三角形的锚点取最小的(r,q)：
+//   类型A（▶）：锚=(r,q)，连接(r,q),(r,q+1),(r-1,q+1)
+//               → 编码为 gr = rows + r, gc = q（偏移 rows 避免与六边形重叠）
+//   类型B（◀）：锚=(r,q)，连接(r,q),(r+1,q),(r+1,q-1)
+//               → 编码为 gr = 2*rows + r, gc = q（再偏移 rows）
+//
+// 扩展坐标：
+//   gr∈[0, rows)       + gc∈[0, cols)  → 六边形 (r=gr, q=gc)
+//   gr∈[rows, 2*rows)  + gc∈[0, cols)  → A型三角形 (r=gr-rows, q=gc)
+//   gr∈[2*rows, 3*rows)+ gc∈[0, cols)  → B型三角形 (r=gr-2*rows, q=gc)
 
-function _triHexParams() {
-    const a = cellSize / 2;
-    const sq3 = Math.sqrt(3);
-    const w = sq3 * a;    // 六边形宽
-    const h = 1.5 * a;    // 行间距（垂直）
-    return { a, sq3, w, h };
+let _triHexCache = null;
+
+function _triHexCacheSignature() {
+    return `${rows}|${cols}|${cellSize}`;
 }
 
-// 六边形中心坐标（偏移坐标系 hr, hc）
-function _triHexHexCenter(hr, hc) {
-    const { a, w, h } = _triHexParams();
-    const cx = hc * w + (hr % 2 === 1 ? w / 2 : 0) + w / 2;
-    const cy = hr * h + a;
-    return [cx, cy];
+function _triHexPointKey(x, y) {
+    return `${x.toFixed(6)},${y.toFixed(6)}`;
 }
 
-// 六边形顶点（pointy-top，从右上开始顺时针）
-function _triHexHexVerts(hr, hc) {
-    const [cx, cy] = _triHexHexCenter(hr, hc);
-    const { a } = _triHexParams();
-    const pts = [];
-    for (let i = 0; i < 6; i++) {
-        const angle = Math.PI / 3 * i - Math.PI / 6;
-        pts.push([cx + a * Math.cos(angle), cy + a * Math.sin(angle)]);
-    }
-    return pts;
+function _triHexMidpoint(a, b) {
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
-// 扩展网格：
-//   六边形 (hr, hc) → gr = 2*hr, gc = hc
-//   朝上三角形：gr = 2*hr - 1, gc = hc  (在六边形 hr 的上方间隙)
-//   朝下三角形：gr = 2*hr + 1, gc = hc  (在六边形 hr 的下方间隙)
-//
-// 但这样 triUp 和 triDown 在同一列会相互覆盖。
-// 更好的方案：每个六边形行之间有两种三角形（▲和▼），分别编码
-//
-// 最终方案：使用 (gr, gc) 其中
-//   gr % 3 == 0 → 六边形行，gc 是六边形列号 hc
-//   gr % 3 == 1 → 朝下三角形（位于上方六边形行的下方）
-//   gr % 3 == 2 → 朝上三角形（位于下方六边形行的上方）
-// 三角形的 gc 编码：
-//   偶数六边形行(hr)的下方三角形 ▼ 数量 = cols（对应六边形列），但需要额外的三角形
-//
-// 实际上最简洁的方法：用三种行交替
-// 六边形行 hr 的六边形数量 = cols
-// 六边形行 hr 和 hr+1 之间的三角形区域：
-//   朝下 ▼：由 hr 行的六边形底部 + hr+1 行的六边形顶部围成
-//   朝上 ▲：与 ▼ 交替排列
-//
-// 让我用更直观的方式：直接计算所有三角形间隙的位置
-
-function triHexCellType(gr, gc) {
-    const mod = ((gr % 3) + 3) % 3;
-    if (mod === 0) return 'hex';
-    if (mod === 1) return 'triDown';
-    return 'triUp';
+function _triHexCentroid(points) {
+    const sx = points.reduce((sum, p) => sum + p[0], 0);
+    const sy = points.reduce((sum, p) => sum + p[1], 0);
+    return [sx / points.length, sy / points.length];
 }
 
-// 从扩展坐标获取六边形偏移坐标
-function _triHexToHexRC(gr, gc) {
-    return [gr / 3, gc];
+function _triHexSortPolygon(points) {
+    const [cx, cy] = _triHexCentroid(points);
+    return [...points].sort((a, b) => {
+        const aa = Math.atan2(a[1] - cy, a[0] - cx);
+        const bb = Math.atan2(b[1] - cy, b[0] - cx);
+        return aa - bb;
+    });
 }
 
-function triHexCenter(gr, gc) {
-    const { a, sq3, w, h } = _triHexParams();
-    const type = triHexCellType(gr, gc);
-
-    if (type === 'hex') {
-        const hr = gr / 3, hc = gc;
-        return _triHexHexCenter(hr, hc);
-    }
-
-    // 三角形位于两个相邻六边形行之间
-    // triDown (gr%3==1): 位于六边形行 hr=floor(gr/3) 的下方
-    // triUp   (gr%3==2): 位于六边形行 hr=ceil(gr/3)=floor(gr/3)+1 的上方
-    //
-    // 对于 triDown：上方六边形行 hr = (gr-1)/3
-    //   下方六边形行 hr+1
-    //   三角形顶点来自上方六边形的底部两点 + 下方六边形的顶部一点
-    //
-    // 对于 triUp：下方六边形行 hr = (gr+1)/3
-    //   上方六边形行 hr-1
-    //   三角形顶点来自下方六边形的顶部两点 + 上方六边形的底部一点
-
-    if (type === 'triDown') {
-        const hr = (gr - 1) / 3;
-        // 上方六边形的中心
-        const [ux, uy] = _triHexHexCenter(hr, gc);
-        // 三角形中心在六边形底部下方 a/3 处（从底部顶点到三角形重心）
-        // 六边形底部顶点 y = uy + a
-        // 三角形高 = √3/2 * a，重心在高的 1/3 处
-        return [ux, uy + a + sq3 * a / 6];
-    } else {
-        const hr = (gr + 1) / 3;
-        const [ux, uy] = _triHexHexCenter(hr, gc);
-        return [ux, uy - a - sq3 * a / 6];
-    }
+// 用标准 pointy-top offset 蜂窝作为“母网格”，再做 rectification。
+function _triHexBaseCenter(row, col) {
+    const s = cellSize;
+    const w = Math.sqrt(3) * s;
+    return [
+        col * w + (row % 2 === 1 ? w / 2 : 0),
+        row * s * 1.5,
+    ];
 }
 
-function triHexVertices(gr, gc) {
-    const { a, sq3 } = _triHexParams();
-    const type = triHexCellType(gr, gc);
-
-    if (type === 'hex') {
-        const hr = gr / 3, hc = gc;
-        return _triHexHexVerts(hr, hc);
-    }
-
-    // 三角形：顶点与相邻六边形的顶点完全重合
-    if (type === 'triDown') {
-        const hr = (gr - 1) / 3;
-        const hexVerts = _triHexHexVerts(hr, gc);
-        // pointy-top 六边形顶点顺序（从右上开始顺时针）：
-        // 0:右上, 1:右, 2:右下, 3:左下, 4:左, 5:左上
-        // 朝下三角形使用底部两个顶点 + 下方六边形的顶部顶点
-        // 底部两个顶点：hexVerts[2](右下) 和 hexVerts[3](左下)
-
-        // 下方六边形的相应顶点
-        const hrBelow = hr + 1;
-        // 偶数行和奇数行的偏移不同，需要找到下方六边形的正确列号
-        // 六边形 (hr, gc) 的左下顶点和右下顶点之间，正下方的六边形列号：
-        // 如果 hr 是偶数行：下方 gc 对应 hc=gc 的六边形（或 hc=gc-1，取决于位置）
-        // 实际上朝下三角形由3个六边形共享：上方1个 + 下方2个
-        //
-        // pointy-top 偏移坐标中，六边形 (hr, hc) 的下方两个邻居：
-        //   偶数行: (hr+1, hc-1) 和 (hr+1, hc)
-        //   奇数行: (hr+1, hc) 和 (hr+1, hc+1)
-        let hcLeft, hcRight;
-        if (hr % 2 === 0) {
-            hcLeft = gc - 1;
-            hcRight = gc;
-        } else {
-            hcLeft = gc;
-            hcRight = gc + 1;
-        }
-
-        // 三角形的三个顶点：
-        // 上方六边形的右下顶点、上方六边形的左下顶点、下方两个六边形共享的顶部顶点
-        const topHex = hexVerts;
-        // 下方右六边形的左上顶点 = 下方左六边形的右上顶点 = 上方六边形底部中点下方的点
-        // 实际上就是下方六边形的顶部顶点
-        // 对于 pointy-top 六边形，顶部顶点(index 0 到 5)中，顶部是 index 5(左上) 和 index 0(右上) 之间...
-        // 不对，pointy-top 的正上方顶点不存在，最上方是两个顶点
-
-        // 让我重新思考。Pointy-top 六边形从 -30° 开始：
-        // i=0: angle=-30° → 右上 (√3/2·a, -a/2)
-        // i=1: angle=30°  → 右   (√3/2·a, a/2)
-        // i=2: angle=90°  → 下   (0, a)
-        // i=3: angle=150° → 左   (-√3/2·a, a/2)  → 应该是左下... 
-        // 等等，让我重新算：
-        // i=0: -30° → (cos(-30°), sin(-30°)) = (√3/2, -1/2) → 右上
-        // i=1: 30°  → (√3/2, 1/2)  → 右下
-        // i=2: 90°  → (0, 1)       → 正下
-        // i=3: 150° → (-√3/2, 1/2) → 左下
-        // i=4: 210° → (-√3/2, -1/2)→ 左上
-        // i=5: 270° → (0, -1)      → 正上
-
-        // 所以：0=右上, 1=右下, 2=正下, 3=左下, 4=左上, 5=正上
-        // 朝下三角形 ▼ 使用上方六边形的 正下(2) 和... 不对
-        // 朝下三角形是上方六边形底部两顶点 + 下方某点
-        // 上方六边形底部: 1(右下), 2(正下), 3(左下) — 但只有2是最底部的点
-        // 
-        // 正确理解：每个六边形6条边，三角形填充在相邻六边形之间
-        // 六边形 (hr, hc) 的底部边连接顶点 1(右下) 和 3(左下)？不对
-        // 六边形 (hr, hc) 的6条边：
-        //   边0: 顶点5→0 (正上→右上) — 右上边
-        //   边1: 顶点0→1 (右上→右下) — 右边
-        //   边2: 顶点1→2 (右下→正下) — 右下边
-        //   边3: 顶点2→3 (正下→左下) — 左下边
-        //   边4: 顶点3→4 (左下→左上) — 左边
-        //   边5: 顶点4→5 (左上→正上) — 左上边
-        //
-        // 朝下三角形 ▼ 的三个边分别与三个六边形共享：
-        //   上方六边形 (hr, hc)：共享边2(右下边) 或边3(左下边)
-        //   下方左六边形 (hr+1, hcLeft)：共享一条上边
-        //   下方右六边形 (hr+1, hcRight)：共享一条上边
-        //
-        // 更准确地说，三角形 ▼ 的三个顶点恰好是：
-        //   上方六边形的顶点1(右下)、上方六边形的顶点3(左下)、
-        //   和一个交汇点（下方两个六边形的共享顶点）
-        // 等等这不对，这会包含顶点2(正下)在内
-
-        // 我需要更清晰地理解 3.6.3.6 的结构。
-        // 在 pointy-top 六边形蜂窝中，相邻六边形之间有三角形间隙。
-        // 关键：不是所有间隙都是三角形。
-        //
-        // Pointy-top 六边形的6条边中：
-        //   水平方向（左、右）的两条边是垂直的
-        //   其余4条边是倾斜的
-        //
-        // 六边形 (hr, hc) 的6个邻居：
-        //   边0(右上): (hr-1, hc+δ)  δ=0(偶行) 或 1(奇行)
-        //   边1(右):   (hr, hc+1)
-        //   边2(右下): (hr+1, hc+δ)
-        //   边3(左下): (hr+1, hc+δ-1)
-        //   边4(左):   (hr, hc-1)
-        //   边5(左上): (hr-1, hc+δ-1)
-        //
-        // 三角形间隙：由3个相邻六边形围成
-        //   ▼ (朝下)：六边形 (hr, hc) + (hr+1, hcLeft) + (hr+1, hcRight) 的交汇处
-        //     三个顶点：(hr,hc)的顶点2, (hr+1,hcLeft)的顶点5, (hr+1,hcRight)的顶点5
-        //     不对...
-        //
-        // 让我用具体坐标验算
-        // 六边形 (0,0) 偶数行, center = (w/2, a) = (√3a/2, a)
-        // 顶点：
-        //   0: (√3a/2 + a·cos(-30°), a + a·sin(-30°)) = (√3a/2 + √3a/2, a - a/2) = (√3a, a/2)
-        //   1: (√3a/2 + √3a/2, a + a/2) = (√3a, 3a/2)
-        //   2: (√3a/2, 2a)
-        //   3: (0, 3a/2)
-        //   4: (0, a/2)
-        //   5: (√3a/2, 0)
-        //
-        // 六边形 (1,0) 奇数行(偏移), center = (√3a/2 + w/2, a + 3a/2) = (√3a, 5a/2)
-        //   这里偏移 w/2 = √3a/2
-        //   center = (0·w + w/2 + w/2, 1·3a/2 + a) = (w, 5a/2) = (√3a, 5a/2)
-        // 顶点：
-        //   0: (√3a + √3a/2, 5a/2 - a/2) = (3√3a/2, 2a)
-        //   5: (√3a, 5a/2 - a) = (√3a, 3a/2)
-        //
-        // 六边形 (1,-1) 奇数行, hc=-1 → 无效，忽略
-        // 六边形 (1,0) 的顶点5 = (√3a, 3a/2) 恰好等于六边形(0,0)的顶点1 = (√3a, 3a/2) ✓
-        //
-        // ▼三角形在 (0,0) 下方：
-        //   (0,0)的顶点2 = (√3a/2, 2a)
-        //   (0,0)的顶点1 = (√3a, 3a/2)  → 不对，这是右侧点不是下方
-        //
-        // 我重新想。3.6.3.6 的三角形间隙是由3个六边形的各一条边围成的。
-        // 看六边形(0,0)的正下方顶点2 = (√3a/2, 2a)
-        // 这个顶点被2个六边形共享：(0,0)的边2-3都经过它
-        // 等等，顶点2只属于边 1→2 和 2→3
-        //
-        // 三角形间隙：
-        // 六边形(0,0) 的边2(1→2): 从(√3a, 3a/2)到(√3a/2, 2a) — 右下边
-        // 六边形(0,0) 的边3(2→3): 从(√3a/2, 2a)到(0, 3a/2) — 左下边
-        //
-        // 下方两个六边形(偶数行hr=0的下方邻居)：
-        //   偶数行: (hr+1, hc-1) 和 (hr+1, hc)
-        //   即 (1, -1) 和 (1, 0)
-        //
-        // 六边形(1,0) 顶点5 = (√3a, 3a/2) — 与(0,0)顶点1重合 ✓
-        // 六边形(1,0) 顶点4 = (√3a - √3a/2, 5a/2 - a/2) = (√3a/2, 2a) — 与(0,0)顶点2重合 ✓
-        //
-        // 所以六边形(0,0) 和 (1,0) 共享边 (√3a, 3a/2)→(√3a/2, 2a)，这是(0,0)的边2
-        // 这两个六边形之间没有三角形间隙——它们直接共享边！
-        //
-        // 那三角形在哪里？
-        // 在 3.6.3.6 中，并不是所有六边形邻居都直接共享边。
-        // 3.6.3.6 的意思是：在每个顶点处，按顺序排列 三角形-六边形-三角形-六边形
-        //
-        // 这意味着六边形的6条边中，只有3条与三角形共享，另外3条与另外3个六边形共享？不对！
-        // 在 3.6.3.6 中，六边形的每条边都与一个三角形共享。
-        //
-        // 等等，我重新看参考图。在 3.6.3.6 tiling 中：
-        // - 六边形不是密集排列的（不像纯六边形蜂窝那样）
-        // - 六边形之间被三角形分隔
-        // - 每个六边形的6条边各与一个三角形共享
-        // - 因此六边形之间的间距更大
-        //
-        // 这意味着六边形的排列方式与普通蜂窝不同！
-        // 在 3.6.3.6 中，六边形的间距更大，每两个相邻六边形之间隔着一个三角形。
-
-        // 重新计算：设边长为 a
-        // 六边形的中心间距 = 2a（不是 √3a）
-        // 因为：六边形边到中心的距离（内切圆半径）= √3a/2
-        //       三角形高 = √3a/2
-        //       所以相邻六边形中心距 = √3a/2 + √3a/2 + ... 不对
-        //
-        // 让我从顶点开始推导。
-        // 在 3.6.3.6 中，边长 = a（六边形和三角形共用）
-        // 六边形中心到顶点 = a
-        // 三角形中心到顶点 = a/√3
-        // 两个共享一条边的六边形，它们之间隔着两个三角形（背对背）？
-        // 不对，看图：每个六边形的每条边连接一个三角形，三角形的另外两条边各连接另一个六边形
-        //
-        // 所以两个"最近的"六边形之间的距离：
-        // 六边形→三角形（共享一条边）→六边形
-        // 六边形中心到共享边中点 = √3a/2（内切圆半径）
-        // 三角形的高（从共享边到对面顶点）= √3a/2
-        // 对面的六边形中心到其共享边中点 = √3a/2
-        // 但三角形的对面顶点被另一个六边形的边上的点重合
-        //
-        // 不对。让我仔细看 3.6.3.6：
-        // 在一个顶点处：3-6-3-6
-        // 这意味着每个顶点被2个三角形和2个六边形共享
-        // 六边形有6个顶点，每个顶点处有一个三角形
-        // 三角形有3个顶点，每个顶点处有一个六边形
-        //
-        // 六边形边长 = 三角形边长 = a
-        // 六边形的每条边与一个三角形共享
-        // 三角形的每条边与一个六边形共享
-        // 每个六边形被 6 个三角形包围
-        // 每个三角形被 3 个六边形包围
-
-        // 既然三角形的每条边都与六边形共享，那么两个三角形不会直接共享边。
-        // 两个相邻六边形也不会直接共享边——它们之间总是隔着一个三角形。
-
-        // 所以六边形的排列不是普通蜂窝！让我重新推导中心间距。
-        
-        // 不行了，这个内联计算太复杂。让我直接从正确的几何重新构造。
-        // 参考 Wikipedia 的 SVG 图片。
-        
-        return [[0,0],[0,0],[0,0]]; // placeholder, 下面完全重写
-    }
-
-    return hexVerts.slice(1, 4); // placeholder
+function _triHexBaseVertices(row, col) {
+    const [cx, cy] = _triHexBaseCenter(row, col);
+    const s = cellSize;
+    const w = Math.sqrt(3) * s / 2;
+    return [
+        [cx,     cy - s    ],
+        [cx + w, cy - s / 2],
+        [cx + w, cy + s / 2],
+        [cx,     cy + s    ],
+        [cx - w, cy + s / 2],
+        [cx - w, cy - s / 2],
+    ];
 }
 
-function triHexAllCells() {
-    const cells = [];
-    const grMax = 2 * rows;
-    const gcMax = 2 * cols;
-    for (let gr = 0; gr < grMax; gr++) {
-        for (let gc = 0; gc < gcMax; gc++) {
-            if (gr % 2 === 0 || gc % 2 === 0) {
-                cells.push([gr, gc]);
+function _ensureTriHexCache() {
+    const signature = _triHexCacheSignature();
+    if (_triHexCache && _triHexCache.signature === signature) return _triHexCache;
+
+    const rawCells = [];
+    const originalVertexMap = new Map();
+    let triangleIndex = 0;
+
+    const addRawCell = (coord, type, vertices) => {
+        rawCells.push({
+            coord,
+            key: `${coord[0]},${coord[1]}`,
+            type,
+            vertices: _triHexSortPolygon(vertices),
+        });
+    };
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const baseVerts = _triHexBaseVertices(r, c);
+            const mids = [];
+
+            for (let i = 0; i < 6; i++) {
+                mids.push(_triHexMidpoint(baseVerts[i], baseVerts[(i + 1) % 6]));
+            }
+            addRawCell([r, c], 'hex', mids);
+
+            for (let i = 0; i < 6; i++) {
+                const prev = (i + 5) % 6;
+                const vertex = baseVerts[i];
+                const vertexKey = _triHexPointKey(vertex[0], vertex[1]);
+                if (!originalVertexMap.has(vertexKey)) {
+                    originalVertexMap.set(vertexKey, { midpoints: new Map() });
+                }
+                const entry = originalVertexMap.get(vertexKey);
+                const m1 = _triHexMidpoint(baseVerts[prev], vertex);
+                const m2 = _triHexMidpoint(vertex, baseVerts[(i + 1) % 6]);
+                entry.midpoints.set(_triHexPointKey(m1[0], m1[1]), m1);
+                entry.midpoints.set(_triHexPointKey(m2[0], m2[1]), m2);
             }
         }
     }
-    return cells;
+
+    for (const entry of originalVertexMap.values()) {
+        const vertices = Array.from(entry.midpoints.values());
+        if (vertices.length !== 3) continue;
+        addRawCell([rows + triangleIndex, 0], 'tri', vertices);
+        triangleIndex++;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cell of rawCells) {
+        for (const [x, y] of cell.vertices) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+    }
+
+    const pad = cellSize;
+    const dx = pad - minX;
+    const dy = pad - minY;
+
+    const cells = [];
+    const cellMap = new Map();
+    const vertexOwners = new Map();
+
+    for (const rawCell of rawCells) {
+        const shiftedVerts = rawCell.vertices.map(([x, y]) => [x + dx, y + dy]);
+        const cell = {
+            key: rawCell.key,
+            coord: rawCell.coord,
+            type: rawCell.type,
+            vertices: shiftedVerts,
+            neighborKeys: new Set(),
+        };
+        cells.push(cell);
+        cellMap.set(cell.key, cell);
+
+        for (const [vx, vy] of shiftedVerts) {
+            const vertexKey = _triHexPointKey(vx, vy);
+            if (!vertexOwners.has(vertexKey)) vertexOwners.set(vertexKey, []);
+            vertexOwners.get(vertexKey).push(cell.key);
+        }
+    }
+
+    for (const owners of vertexOwners.values()) {
+        const uniqueOwners = [...new Set(owners)];
+        for (let i = 0; i < uniqueOwners.length; i++) {
+            for (let j = 0; j < uniqueOwners.length; j++) {
+                if (i === j) continue;
+                cellMap.get(uniqueOwners[i]).neighborKeys.add(uniqueOwners[j]);
+            }
+        }
+    }
+
+    _triHexCache = {
+        signature,
+        allCells: cells.map(cell => cell.coord),
+        cellMap,
+        boardSize: {
+            width: Math.ceil(maxX - minX + pad * 2) + 4,
+            height: Math.ceil(maxY - minY + pad * 2) + 4,
+        },
+    };
+    return _triHexCache;
+}
+
+function triHexCellType(gr, gc) {
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.type : null;
+}
+
+function triHexVertices(gr, gc) {
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.vertices : [];
+}
+
+function triHexAllCells() {
+    return _ensureTriHexCache().allCells;
 }
 
 function triHexNeighbors(gr, gc) {
-    const nb = [];
-    const grMax = 2 * rows;
-    const gcMax = 2 * cols;
-    const type = triHexCellType(gr, gc);
-    const valid = (r, c) => r >= 0 && r < grMax && c >= 0 && c < gcMax && (r % 2 === 0 || c % 2 === 0);
-
-    if (type === 'hex') {
-        const triOffsets = [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]];
-        const hexOffsets = [[-2,0],[2,0],[0,-2],[0,2],[-2,2],[2,-2]];
-        for (const [dr, dc] of [...triOffsets, ...hexOffsets]) {
-            const nr = gr + dr, nc = gc + dc;
-            if (valid(nr, nc)) nb.push([nr, nc]);
-        }
-    } else {
-        const offsets = type === 'triUp'
-            ? [[-1,0],[0,-1],[0,1],[-1,-1],[-1,1],[0,-2],[0,2],[1,0],[1,-1],[1,1]]
-            : [[1,0],[0,-1],[0,1],[1,-1],[1,1],[0,-2],[0,2],[-1,0],[-1,-1],[-1,1]];
-        for (const [dr, dc] of offsets) {
-            const nr = gr + dr, nc = gc + dc;
-            if (valid(nr, nc)) nb.push([nr, nc]);
-        }
-    }
-    return nb;
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    if (!cell) return [];
+    return [...cell.neighborKeys].map(key => key.split(',').map(Number));
 }
 
 function triHexBoardSize() {
-    const a = cellSize / 2;
-    const sq3 = Math.sqrt(3);
-    const hexStepX = 2 * a;
-    const hexStepY = sq3 * a;
-    const grMax = 2 * rows;
-    const gcMax = 2 * cols;
-    return {
-        width: Math.ceil(gcMax / 2 * hexStepX / 2 + a * 3) + 4,
-        height: Math.ceil(grMax / 2 * hexStepY / 2 + a * 3) + 4,
-    };
+    return _ensureTriHexCache().boardSize;
 }
 
 // ─── Cairo 五边形镶嵌（5边）────────────────────────────────────
