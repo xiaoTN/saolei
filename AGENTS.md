@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Claude Code / Codex 项目上下文文档。
 
 ## 项目概述
 
@@ -118,11 +118,7 @@ node --check game.js renderer.js geometry.js
 - 测试用例按功能模块分类，包含：测试步骤、预期结果、关联修复
 - 发布前按 `TEST-CASES.md` 清单逐项验证
 
-## 文档同步规则（重要）
+## 约定
 
-`CLAUDE.md` 与 `AGENTS.md` 必须保持相同内容，用于 Claude Code / Codex 共用上下文。
-
-- 更新任一文件时，必须同步更新另一个文件
-- 提交前建议执行：`cmp -s CLAUDE.md AGENTS.md`
-- 约定：每次完成代码或文档改动后立即执行 `git commit`
-- 约定：`git commit` 信息使用中文，简洁描述本次改动
+- 每次完成代码或文档改动后立即执行 `git commit`
+- `git commit` 信息使用中文，简洁描述本次改动
