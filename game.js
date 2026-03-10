@@ -54,7 +54,7 @@ let rows     = 10;
 let cols     = 10;
 let sides    = 4;
 let cellSize = 44;
-const SUPPORTED_SIDES = new Set([3, 4, 6, 8, 36]);
+const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 36]);
 
 let currentDifficulty = 'medium';
 let gameStarted = false; // 游戏是否已开始（用于界面切换）
@@ -76,6 +76,13 @@ const DIFFICULTY_PRESETS = {
         easy:   [9,  9,  10],    // 81格，密度 12.3%
         medium: [16, 16, 40],    // 256格，密度 15.6%
         hard:   [16, 30, 99],    // 480格，密度 20.6%
+        hell:   [100, 100, 2500],// 10000格，密度 25.0%
+    },
+    5: {
+        // Cairo 五边形镶嵌，5邻居
+        easy:   [8,  8,  12],    // 64格，密度 18.8%
+        medium: [12, 12,  35],   // 144格，密度 24.3%
+        hard:   [16, 16,  70],   // 256格，密度 27.3%
         hell:   [100, 100, 2500],// 10000格，密度 25.0%
     },
     6: {
@@ -175,7 +182,7 @@ function selectSides(s) {
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
-    const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
+    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
     cellSize = sizeMap[sides] || 44;
     if (!gameStarted) {
         // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
@@ -261,7 +268,7 @@ function initGame() {
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
-    const sizeMap = { 3: 48, 4: 40, 6: 44, 8: 44 };
+    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
     cellSize = sizeMap[sides] || 44;
 
     // 非自定义模式：直接从预设读取，不依赖滑动条当前值

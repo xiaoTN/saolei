@@ -349,11 +349,76 @@ function triHexBoardSize() {
     };
 }
 
+// ─── Cairo 五边形镶嵌（5边）────────────────────────────────────
+// Type 4 pentagonal tiling（Cairo/Prismatic pentagonal tiling）
+// 每个五边形有 5 个邻居
+// 使用正方形网格，五边形在网格单元内，有一条"台阶"边
+
+function cairoType(row, col) {
+    return (row + col) % 2 === 0 ? 'a' : 'b';
+}
+
+function cairoVertices(row, col) {
+    const s = cellSize;
+    const x0 = col * s;
+    const y0 = row * s;
+    const type = cairoType(row, col);
+
+    // 五边形在正方形网格单元内，有一条"台阶"边
+    // 类型 A：台阶在右侧（右中顶点）
+    // 类型 B：台阶在左侧（左中顶点）
+
+    if (type === 'a') {
+        return [
+            [x0, y0],           // 左上
+            [x0 + s, y0],       // 右上
+            [x0 + s, y0 + s/2], // 右中（台阶顶点）
+            [x0 + s, y0 + s],   // 右下
+            [x0, y0 + s],       // 左下
+        ];
+    } else {
+        return [
+            [x0, y0 + s/2],     // 左中（台阶顶点）
+            [x0, y0],           // 左上
+            [x0 + s, y0],       // 右上
+            [x0 + s, y0 + s],   // 右下
+            [x0, y0 + s],       // 左下
+        ];
+    }
+}
+
+function cairoNeighbors(row, col) {
+    const type = cairoType(row, col);
+    const nb = [];
+
+    // 4 个基本邻居：上下左右
+    for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) nb.push([nr, nc]);
+    }
+
+    // 第 5 个邻居：对角方向
+    // 类型 A 的右中顶点与类型 B（右下对角）的左中顶点通过"台阶"边连接
+    const diag = type === 'a' ? [1, 1] : [-1, -1];
+    const nr = row + diag[0], nc = col + diag[1];
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) nb.push([nr, nc]);
+
+    return nb;
+}
+
+function cairoBoardSize() {
+    return {
+        width: cols * cellSize + 2,
+        height: rows * cellSize + 2,
+    };
+}
+
 // ─── 统一接口 ─────────────────────────────────────────────────
 
 function getCellVertices(sides, row, col) {
     if (sides === 3) return triVertices(row, col);
     if (sides === 4) return sqVertices(row, col);
+    if (sides === 5) return cairoVertices(row, col);
     if (sides === 6) return hexVertices(row, col);
     if (sides === 8) return octSqVertices(row, col); // row,col 是扩展网格坐标 gr,gc
     if (sides === 36) return triHexVertices(row, col);
@@ -379,10 +444,13 @@ function getAllCells(sides) {
     return cells;
 }
 
+// Cairo 五边形镶嵌使用标准网格，无需特殊处理
+
 function getNeighbors(sides, row, col) {
     let nb;
     if (sides === 3) nb = triNeighbors(row, col);
     else if (sides === 4) nb = sqNeighbors(row, col);
+    else if (sides === 5) nb = cairoNeighbors(row, col);
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);
     else if (sides === 36) nb = triHexNeighbors(row, col);
@@ -398,6 +466,7 @@ function getNeighbors(sides, row, col) {
 function getBoardSize(sides) {
     if (sides === 3) return triBoardSize();
     if (sides === 4) return sqBoardSize();
+    if (sides === 5) return cairoBoardSize();
     if (sides === 6) return hexBoardSize();
     if (sides === 8) return octSqBoardSize();
     if (sides === 36) return triHexBoardSize();
