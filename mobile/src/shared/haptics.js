@@ -8,10 +8,11 @@ const HapticsAdapter = {
     async init() {
         if (window.Platform && window.Platform.isApp) {
             try {
-                // 动态加载 Capacitor Haptics（仅 App 环境）
-                const module = await import('../mobile/node_modules/@capacitor/haptics/dist/esm/index.js');
-                this._haptics = module.Haptics;
+                // Capacitor 环境下动态加载 Haptics
+                const { Haptics } = await import('@capacitor/haptics');
+                this._haptics = Haptics;
                 this._ready = true;
+                console.log('Haptics initialized');
             } catch (e) {
                 console.warn('Haptics not available:', e);
             }
@@ -23,7 +24,7 @@ const HapticsAdapter = {
     // 开格成功 - 短震动
     async light() {
         if (!this._ready) return;
-        if (window.Platform && window.Platform.isApp && this._haptics) {
+        if (this._haptics) {
             await this._haptics.impact({ style: 'Light' });
         } else if (navigator.vibrate) {
             navigator.vibrate(30);
@@ -33,7 +34,7 @@ const HapticsAdapter = {
     // 标旗 - 轻震
     async tick() {
         if (!this._ready) return;
-        if (window.Platform && window.Platform.isApp && this._haptics) {
+        if (this._haptics) {
             await this._haptics.impact({ style: 'Light' });
         } else if (navigator.vibrate) {
             navigator.vibrate(15);
@@ -43,7 +44,7 @@ const HapticsAdapter = {
     // 踩雷 - 强震动
     async error() {
         if (!this._ready) return;
-        if (window.Platform && window.Platform.isApp && this._haptics) {
+        if (this._haptics) {
             await this._haptics.notification({ type: 'Error' });
         } else if (navigator.vibrate) {
             navigator.vibrate([100, 50, 100]);
