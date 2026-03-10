@@ -100,6 +100,17 @@ function showStartScreen() {
     document.getElementById('startScreen').classList.remove('hidden');
     document.getElementById('gameScreen').classList.remove('active');
     gameStarted = false;
+
+    // 解锁设置按钮（首次点击后会被锁定）
+    _setSettingsLocked(false);
+
+    // 恢复按钮选中状态
+    document.querySelectorAll('.side-btn').forEach(btn => {
+        btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
+    });
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
+    });
 }
 
 function showGameScreen() {
@@ -802,6 +813,7 @@ let _isPanning = false;
 
 // ─── 入口 ─────────────────────────────────────────────────────
 
-// 初始化时应用默认难度
+// 初始化时应用默认设置
+selectSides(4);
 selectDifficulty('medium');
 _updatePreviewInfo();
