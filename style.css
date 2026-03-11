@@ -470,3 +470,168 @@ input:disabled {
 #mineRatio.easy   { color: #2ed573; }
 #mineRatio.medium { color: #ffa502; }
 #mineRatio.hard   { color: #ff4757; }
+
+/* ── 模式选择屏 ─────────────────────────────────────── */
+.mode-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #0a0a1a;
+    z-index: 10;
+}
+
+.mode-container {
+    display: flex; flex-direction: column; align-items: center; gap: 32px;
+    padding: 24px;
+}
+
+.mode-cards {
+    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+}
+
+.mode-card {
+    background: #1a1a2e;
+    border: 2px solid #2a2a4c;
+    border-radius: 16px;
+    padding: 28px 36px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    min-width: 140px;
+}
+
+.mode-card:hover {
+    border-color: #7c7cff;
+    transform: translateY(-2px);
+}
+
+.mode-icon { font-size: 40px; margin-bottom: 10px; }
+
+.mode-name {
+    font-size: 18px; font-weight: bold;
+    color: #eee;
+    margin-bottom: 6px;
+}
+
+.mode-desc { font-size: 12px; color: #888; }
+
+/* ── 联机大厅屏 ─────────────────────────────────────── */
+.lobby-screen {
+    position: fixed; inset: 0; overflow-y: auto;
+    background: #0a0a1a;
+    z-index: 10;
+}
+
+.lobby-container {
+    max-width: 480px; margin: 0 auto; padding: 20px 16px 40px;
+}
+
+.lobby-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+}
+
+.lobby-header h2 { margin: 0; font-size: 20px; }
+
+.lobby-section { margin-bottom: 20px; }
+
+.lobby-section-title {
+    font-size: 13px; color: #888;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 10px;
+}
+
+.lobby-divider {
+    text-align: center; color: #555;
+    font-size: 13px; margin: 20px 0;
+}
+
+.join-row { display: flex; gap: 10px; }
+
+.room-code-input {
+    flex: 1; background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 8px; padding: 12px 16px;
+    font-size: 20px; letter-spacing: 6px; text-align: center;
+    color: #eee; text-transform: uppercase;
+    outline: none;
+}
+
+.room-code-input:focus { border-color: #7c7cff; }
+
+.join-btn {
+    background: #7c7cff; border: none; border-radius: 8px;
+    padding: 12px 20px; color: #fff; font-size: 15px;
+    cursor: pointer; white-space: nowrap;
+}
+
+.join-btn:hover { opacity: 0.85; }
+
+.lobby-error {
+    color: #ff6b6b; font-size: 13px; margin-top: 8px; min-height: 18px;
+}
+
+.lobby-back { margin-bottom: 16px; }
+
+/* ── 等待室屏 ────────────────────────────────────────── */
+.waiting-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #0a0a1a;
+    z-index: 10;
+}
+
+.waiting-container {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 28px; padding: 24px; max-width: 360px; width: 100%;
+}
+
+.waiting-header {
+    width: 100%; display: flex; align-items: center; gap: 12px;
+}
+
+.waiting-header h2 { margin: 0; font-size: 18px; }
+
+.room-code-display { text-align: center; }
+
+.room-code-label {
+    font-size: 13px; color: #888;
+    margin-bottom: 8px;
+}
+
+.room-code-big {
+    font-size: 48px; font-weight: bold; letter-spacing: 12px;
+    color: #fff; font-family: monospace;
+    margin-bottom: 8px;
+}
+
+.room-code-hint { font-size: 13px; color: #666; }
+
+.waiting-players {
+    display: flex; gap: 20px;
+}
+
+.waiting-player {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: #888;
+}
+
+.player-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #555;
+}
+
+.waiting-player.online .player-dot { background: #4eff4e; }
+
+/* ── 游戏内联机状态 ──────────────────────────────────── */
+.mp-status { transition: opacity 0.3s; }
+
+.mp-stats {
+    display: flex; gap: 12px; justify-content: center;
+    padding: 6px 16px; font-size: 12px;
+    color: #888;
+    background: #1a1a2e;
+    border-bottom: 1px solid #2a2a4c;
+}
+
+#mpMyReveal { color: #4eff4e; }
+
