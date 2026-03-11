@@ -51,7 +51,8 @@ let touchLongPressFired = {};
 
 // ─── 联机状态 ──────────────────────────────────────────
 let mpRole = null;         // 'host' | 'guest' | null
-let mpGuestLocked = false; // guest 等待 board-init 时锁定交互
+let mpWaitingBoardInit = false; // 等待对方发 board-init（对方先点击时）
+let mpSentBoardInit = false;    // 本端已发出 board-init（用于竞态仲裁）
 let mpMyRevealCount = 0;   // 本端翻格计数（近似）
 let mpPartnerRevealCount = 0; // 对端翻格计数（近似）
 
@@ -199,7 +200,8 @@ function backToMenu() {
     hideGameResult();
     MP.disconnect();
     mpRole = null;
-    mpGuestLocked = false;
+    mpWaitingBoardInit = false;
+    mpSentBoardInit = false;
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
     showScreen('modeScreen');
@@ -467,6 +469,8 @@ function initGame() {
     totalCellsCount = 0;
     touchHoldTimers = {};
     touchLongPressFired = {};
+    mpWaitingBoardInit = false;
+    mpSentBoardInit = false;
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
@@ -499,7 +503,12 @@ function initGame() {
             }
             if (type === 'flag') { handleClick(...key.split(',').map(Number), { fromRemote: true }); }
             if (type === 'chord') { revealCells(keys, true); }
-            if (type === 'board-init') { initBoardFromRemote(msg.mineLocations); }
+            if (type === 'board-init') {
+                // 如果本端已先触发首次点击并发出 board-init，忽略对方的（竞态仲裁）
+                if (!mpSentBoardInit) {
+                    initBoardFromRemote(msg.mineLocations);
+                }
+            }
         };
         MP.onPartnerLeft = () => {
             if (!gameOver) {
@@ -631,12 +640,12 @@ function handleClick(row, col, opts = {}) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
-    // Guest 等待棋盘初始化时锁定交互
-    if (mpGuestLocked) return;
+    // 等待对方触发首次点击（board-init）时锁定交互
+    if (mpWaitingBoardInit) return;
 
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
-        if (mpRole === 'guest') { mpGuestLocked = true; return; }
+        if (MP.isMultiplayer()) mpWaitingBoardInit = false; // 本端先点，不等待
         _revealCell_firstClick(row, col);
         // 联机：board-init 已在 _revealCell_firstClick 里发送，同步首次翻格结果
         if (MP.isMultiplayer()) {
@@ -709,12 +718,11 @@ function handleRightClick(e, row, col, opts = {}) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
-    // Guest 等待棋盘初始化时锁定交互
-    if (mpGuestLocked) return;
+    // 等待对方触发首次点击（board-init）时锁定交互
+    if (mpWaitingBoardInit) return;
 
     // 首次点击：直接打开格子
     if (firstClick) {
-        if (mpRole === 'guest') return; // Guest 等待 host 触发
         _revealCell_firstClick(row, col);
         // 联机：board-init 已在 _revealCell_firstClick 里发送，同步首次翻格结果
         if (MP.isMultiplayer()) {
@@ -788,8 +796,9 @@ function _revealCell_firstClick(row, col) {
     firstClick = false;
     _setSettingsLocked(true);
     _placeMines(row, col);
-    // 联机模式：Host 将雷位发送给 Guest
-    if (mpRole === 'host' && MP.isMultiplayer()) {
+    // 联机模式：本端触发首次点击，将雷位发送给对方
+    if (MP.isMultiplayer()) {
+        mpSentBoardInit = true;
         MP.send({
             type: 'board-init',
             mineLocations: mineLocations.map(([r, c]) => `${r},${c}`)
@@ -902,7 +911,7 @@ function initBoardFromRemote(mineLocationKeys) {
         }
     }
     firstClick = false;
-    mpGuestLocked = false;
+    mpWaitingBoardInit = false;
     _setSettingsLocked(true);
     _updateGameStatus();
     startTimer();
