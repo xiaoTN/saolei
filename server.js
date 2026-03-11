@@ -1,8 +1,30 @@
 // server.js — 多边形扫雷联机信令服务器
 const { WebSocketServer } = require('ws');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const PORT = 8765;
-const wss = new WebSocketServer({ port: PORT });
+const PORT = process.env.PORT || 8765;
+
+const MIME = {
+    '.html': 'text/html',
+    '.js':   'application/javascript',
+    '.css':  'text/css',
+    '.png':  'image/png',
+    '.ico':  'image/x-icon',
+};
+
+const httpServer = http.createServer((req, res) => {
+    let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
+    const ext = path.extname(filePath);
+    fs.readFile(filePath, (err, data) => {
+        if (err) { res.writeHead(404); res.end('Not found'); return; }
+        res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+        res.end(data);
+    });
+});
+
+const wss = new WebSocketServer({ server: httpServer });
 
 // rooms: code → { host: ws|null, guest: ws|null, config: obj|null, boardInit: msg|null }
 const rooms = new Map();
@@ -105,4 +127,7 @@ wss.on('connection', (ws) => {
     });
 });
 
-console.log(`[server] listening on ws://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+    console.log(`[server] listening on http://localhost:${PORT}`);
+    console.log(`[server] WebSocket on ws://localhost:${PORT}`);
+});
