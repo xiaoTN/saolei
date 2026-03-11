@@ -143,27 +143,46 @@ const DIFFICULTY_PRESETS = {
 
 // ─── 界面切换 ──────────────────────────────────────────────────
 
+// 新增屏幕（display 控制）
+const NEW_SCREENS = ['modeScreen', 'lobbyScreen', 'waitingScreen'];
+
+function showScreen(id) {
+    // 处理新增屏幕（display 切换）
+    for (const screenId of NEW_SCREENS) {
+        const el = document.getElementById(screenId);
+        if (el) el.style.display = screenId === id ? 'flex' : 'none';
+    }
+    // 处理原有屏幕（class 切换，保持原有动画效果）
+    const startEl = document.getElementById('startScreen');
+    const gameEl  = document.getElementById('gameScreen');
+    if (id === 'startScreen') {
+        startEl.classList.remove('hidden');
+        gameEl.classList.remove('active');
+        gameStarted = false;
+        _setSettingsLocked(false);
+        document.querySelectorAll('.side-btn').forEach(btn => {
+            btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
+        });
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
+        });
+    } else if (id === 'gameScreen') {
+        startEl.classList.add('hidden');
+        gameEl.classList.add('active');
+        gameStarted = true;
+    } else {
+        startEl.classList.add('hidden');
+        gameEl.classList.remove('active');
+        gameStarted = false;
+    }
+}
+
 function showStartScreen() {
-    document.getElementById('startScreen').classList.remove('hidden');
-    document.getElementById('gameScreen').classList.remove('active');
-    gameStarted = false;
-
-    // 解锁设置按钮（首次点击后会被锁定）
-    _setSettingsLocked(false);
-
-    // 恢复按钮选中状态
-    document.querySelectorAll('.side-btn').forEach(btn => {
-        btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
-    });
-    document.querySelectorAll('.diff-btn').forEach(btn => {
-        btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
-    });
+    showScreen('startScreen');
 }
 
 function showGameScreen() {
-    document.getElementById('startScreen').classList.add('hidden');
-    document.getElementById('gameScreen').classList.add('active');
-    gameStarted = true;
+    showScreen('gameScreen');
 }
 
 function startGame() {
@@ -191,6 +210,109 @@ function restartGame() {
     setTimeout(() => {
         if (window._panCenter) window._panCenter();
     }, 100);
+}
+
+// ─── 联机 UI 控制函数 ──────────────────────────────────────────
+
+// 进入单人流程
+function enterSinglePlayer() {
+    showScreen('startScreen');
+}
+
+// 进入联机大厅
+function enterMultiplayer() {
+    showScreen('lobbyScreen');
+}
+
+// 从大厅返回模式选择
+function backToModeSelect() {
+    showScreen('modeScreen');
+}
+
+// 联机大厅：形状/难度选择
+let mpSides = 4;
+let mpDifficulty = 'medium';
+
+function mpSelectSides(s) {
+    mpSides = s;
+    document.querySelectorAll('.mp-side-btn').forEach(b => {
+        b.classList.toggle('selected', parseInt(b.dataset.sides) === s);
+    });
+}
+
+function mpSelectDifficulty(diff) {
+    mpDifficulty = diff;
+    document.querySelectorAll('.mp-diff-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.diff === diff);
+    });
+}
+
+// 创建房间
+async function createRoom() {
+    document.getElementById('lobbyError').textContent = '';
+    try {
+        await MP.connect();
+    } catch (e) {
+        document.getElementById('lobbyError').textContent = e.message;
+        return;
+    }
+    MP._onRoomCreated = (code) => {
+        mpRole = 'host';
+        document.getElementById('waitingRoomCode').textContent = code;
+        document.getElementById('waitingPartnerLabel').textContent = '等待中...';
+        showScreen('waitingScreen');
+        MP.onPartnerJoined = () => {
+            sides = mpSides;
+            currentDifficulty = mpDifficulty;
+            cellSize = _effectiveCellSize();
+            initGame();
+            showScreen('gameScreen');
+            setTimeout(() => { if (window._panCenter) window._panCenter(); }, 100);
+        };
+    };
+    const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[mpDifficulty] || [10, 10, 20];
+    MP.createRoom({ sides: mpSides, difficulty: mpDifficulty, rows: preset[0], cols: preset[1], mines: preset[2] });
+}
+
+// 加入房间
+async function joinRoom() {
+    const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+    if (code.length !== 4) {
+        document.getElementById('lobbyError').textContent = '请输入4位房间码';
+        return;
+    }
+    document.getElementById('lobbyError').textContent = '';
+    try {
+        await MP.connect();
+    } catch (e) {
+        document.getElementById('lobbyError').textContent = e.message;
+        return;
+    }
+    MP.onError = (errCode) => {
+        const msgs = { ROOM_FULL: '房间已满', ROOM_NOT_FOUND: '房间不存在', INVALID_CODE: '房间码格式错误' };
+        document.getElementById('lobbyError').textContent = msgs[errCode] || '加入失败';
+    };
+    MP._onRoomJoined = (msg) => {
+        mpRole = 'guest';
+        const cfg = msg.config || {};
+        sides = cfg.sides || 4;
+        currentDifficulty = cfg.difficulty || 'medium';
+        if (cfg.rows) rows = cfg.rows;
+        if (cfg.cols) cols = cfg.cols;
+        if (cfg.mines) { totalMines = cfg.mines; mineCount = cfg.mines; }
+        cellSize = _effectiveCellSize();
+        initGame();
+        showScreen('gameScreen');
+        setTimeout(() => { if (window._panCenter) window._panCenter(); }, 100);
+    };
+    MP.joinRoom(code);
+}
+
+// 取消等待
+function cancelWaiting() {
+    MP.disconnect();
+    mpRole = null;
+    showScreen('modeScreen');
 }
 
 function showGameResult(won) {
@@ -1139,3 +1261,6 @@ if (window.HapticsAdapter) {
 selectSides(4);
 selectDifficulty('medium');
 _updatePreviewInfo();
+
+// 初始显示模式选择屏
+showScreen('modeScreen');
