@@ -197,6 +197,7 @@ function startGame() {
 function backToMenu() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     hideGameResult();
+    MP.disconnect();
     mpRole = null;
     mpGuestLocked = false;
     mpMyRevealCount = 0;
@@ -501,8 +502,12 @@ function initGame() {
             if (type === 'board-init') { initBoardFromRemote(msg.mineLocations); }
         };
         MP.onPartnerLeft = () => {
-            const el = document.getElementById('mpStatus');
-            if (el) el.textContent = '⚠️ 对方已断线';
+            if (!gameOver) {
+                gameOver = true;
+                clearInterval(timerInterval);
+                alert('对方已退出，游戏结束');
+                backToMenu();
+            }
         };
         MP.onPartnerRejoined = () => {
             const el = document.getElementById('mpStatus');

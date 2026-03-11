@@ -87,7 +87,7 @@ const MP = (() => {
 
     // ── 断开连接 ─────────────────────────────────────
     function disconnect() {
-        if (_ws) { _ws.close(); _ws = null; }
+        if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
         _role = null;
         _code = null;
     }
