@@ -40,7 +40,7 @@
 
 在原有游戏界面基础上：
 - 顶部状态栏新增「🟢 对方在线」连接状态指示
-- 底部新增双方翻格统计：「你：已翻 N 格 / 对方：已翻 N 格」
+- 底部新增双方翻格统计：「你：已翻 N 格 / 对方：已翻 N 格」（本地近似计数，不保证双端完全一致）
 - 共享同一棋盘，双方均可翻格和插旗
 - 任意一方踩雷 → 游戏失败（共享生命，默认无额外生命机制）
 - 共同揭开所有非雷格 → 游戏胜利
@@ -75,9 +75,9 @@ node server.js
 
 核心接口：
 ```js
-MP.connect(url)                    // 连接服务器
-MP.createRoom(config)              // 创建房间，返回房间码
-MP.joinRoom(code)                  // 加入房间
+MP.connect(url)                    // 连接服务器（异步，返回 Promise）
+MP.createRoom(config)              // 发送创建请求，房间码通过 room-created 消息异步返回
+MP.joinRoom(code)                  // 加入房间，结果通过 room-joined/error 消息异步返回
 MP.send({ type, key, ... })        // 发送操作
 MP.onMessage = (msg) => {}         // 接收远端操作
 MP.onPartnerJoined = () => {}      // 对方加入回调
@@ -92,14 +92,22 @@ MP.onPartnerLeft = () => {}        // 对方断开回调
 - 新增联机大厅界面（创建/加入房间）
 - 新增等待室界面
 - 游戏界面顶部新增联机状态栏
-- 加载顺序末尾追加 `multiplayer.js`
+- 加载顺序：`multiplayer.js` 在 `game.js` **之前**加载（game.js 初始化时需检测 `MP` 对象）
+  ```
+  platform.js → storage.js → haptics.js → geometry.js → renderer.js → multiplayer.js → game.js
+  ```
 
 #### `game.js`
 
 在以下操作后触发 `MP.send()`：
-- `handleClick()`（插旗）
-- `handleRightClick()`（翻格）
-- chord 操作
+- `handleClick()`（**左键 = 插旗**，符合项目约定）
+- `handleRightClick()`（**右键/长按 = 翻格**，符合项目约定）
+- chord 操作（携带展开后的完整格子列表）
+- 首次点击生成棋盘后，发送 `board-init`
+
+联机模式下新增逻辑分支：
+- `firstClick === true` 且 `role === 'guest'` → 锁定交互，等待 `board-init`
+- `firstClick === true` 且 `role === 'host'` → 正常生成棋盘，然后发送 `board-init`
 
 接收远端消息时调用对应游戏函数，传入 `fromRemote: true` 标志，跳过再次发送：
 ```js
@@ -127,32 +135,63 @@ MP.onMessage = ({ type, key }) => {
 
 ```js
 // 客户端 → 服务器 → 对方客户端
-{ type: 'reveal', key: 'r3c4' }          // 翻格
-{ type: 'flag',   key: 'r3c4' }          // 插旗/取消旗
-{ type: 'chord',  key: 'r3c4' }          // 快速开雷
+{ type: 'reveal', key: '3,4' }           // 翻格（key 格式与 geometry.js 一致：'row,col'）
+{ type: 'flag',   key: '3,4' }           // 插旗/取消旗
+{ type: 'chord',  keys: ['3,4','3,5'] }  // 快速开雷，携带展开后所有格子的 key 列表
+
+// 客户端 → 服务器（房间操作）
+{ type: 'create', config: { sides, difficulty, rows, cols, mines } }
+{ type: 'join',   code: 'A3F7' }
 
 // 服务器 → 客户端（系统消息）
 { type: 'room-created', code: 'A3F7', role: 'host' }
-{ type: 'room-joined',  code: 'A3F7', role: 'guest', config: { sides, difficulty, ... } }
+{ type: 'room-joined',  code: 'A3F7', role: 'guest', config: { sides, difficulty, rows, cols, mines } }
+  // config 仅用于客户端渲染棋盘外形，不含雷位信息；实际雷位以 board-init 为准
 { type: 'partner-joined' }
 { type: 'partner-left' }
+{ type: 'board-init', mineLocations: ['3,4', '1,2', ...] }
+  // mineLocations：字符串数组，格式与 geometry.js 的 key 格式（'row,col'）一致
+
+// 服务器 → 客户端（错误消息）
+{ type: 'error', code: 'ROOM_FULL' }        // 房间已有2人
+{ type: 'error', code: 'ROOM_NOT_FOUND' }   // 房间码不存在
+{ type: 'error', code: 'INVALID_CODE' }     // 格式非法
 ```
 
 ### 首次点击（放雷）处理
 
-1. 房主（Player 1）首次点击后，按原有逻辑生成安全棋盘（`mineLocations`）
-2. 房主通过 WebSocket 把 `mineLocations` 发给 Player 2：
+1. **只有房主（Player 1）的首次点击触发棋盘生成**
+2. Player 2 在收到 `board-init` 消息前，UI 层锁定交互（棋盘显示但不可点击），并显示「等待对方初始化...」提示
+3. 房主首次点击后，按原有逻辑生成安全棋盘（`mineLocations`），然后发送：
    ```js
-   { type: 'board-init', mineLocations: [...] }
+   { type: 'board-init', mineLocations: ['3,4', '1,2', ...] }
    ```
-3. Player 2 用相同雷位初始化棋盘
-4. 之后只传操作消息，双端各自执行，保持同步
+4. Player 2 收到 `board-init` 后用相同雷位初始化棋盘，解锁交互
+5. 之后只传操作消息，双端各自执行，保持同步
+
+### chord 操作同步
+
+chord（快速开雷）在本地展开后，将展开的完整格子列表发送给对方，而非仅发送触发格。对方收到后直接调用 `revealCells(keys, { fromRemote: true })`，避免因双端本地状态微小差异导致展开结果不一致。
 
 ### 防重入
 
 所有游戏函数接受可选的 `fromRemote` 标志：
 - `fromRemote: true` → 执行游戏逻辑，**不**调用 `MP.send()`
 - `fromRemote: false`（默认）→ 执行游戏逻辑，**并**调用 `MP.send()`
+
+### 断线处理
+
+- 任一方断线 → 另一方收到 `partner-left`，游戏**暂停**，显示「对方已断线，等待重连...」
+- 断线方在 30 秒内重连并重新加入房间 → 游戏恢复（服务器保留房间状态 30 秒）
+- 超过 30 秒未重连 → 服务器销毁房间，双方显示「连接已断开」，回到主界面
+- 服务器职责新增：持有断线计时器，超时清除房间
+
+### 错误处理（前端）
+
+收到 `{ type: 'error' }` 消息时：
+- `ROOM_FULL` → 提示「该房间已满」，返回联机大厅
+- `ROOM_NOT_FOUND` → 提示「房间不存在，请检查房间码」
+- `INVALID_CODE` → 提示「房间码格式错误」
 
 ---
 
