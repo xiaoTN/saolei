@@ -1,4 +1,5 @@
-node_modules/.bin
+node_modules/
+.superpowers/
 .playwright-mcp
 
 # 环境变量（包含敏感信息）

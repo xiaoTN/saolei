@@ -9,9 +9,29 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 模式选择屏 -->
+    <div class="mode-screen" id="modeScreen">
+        <div class="mode-container">
+            <h1 class="game-title">💣 多边形扫雷</h1>
+            <div class="mode-cards">
+                <div class="mode-card" onclick="enterSinglePlayer()">
+                    <div class="mode-icon">👤</div>
+                    <div class="mode-name">单人游戏</div>
+                    <div class="mode-desc">选棋盘 · 选难度 · 开始</div>
+                </div>
+                <div class="mode-card" onclick="enterMultiplayer()">
+                    <div class="mode-icon">👥</div>
+                    <div class="mode-name">双人联机</div>
+                    <div class="mode-desc">合作模式 · 共同扫雷</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 入口界面 -->
     <div class="start-screen" id="startScreen">
         <div class="start-container">
+            <button class="back-btn lobby-back" onclick="backToModeSelect()">← 返回</button>
             <h1 class="game-title">💣 多边形扫雷</h1>
             
             <div class="settings-card">
@@ -72,6 +92,81 @@
         </div>
     </div>
 
+    <!-- 联机大厅屏 -->
+    <div class="lobby-screen" id="lobbyScreen" style="display:none">
+        <div class="lobby-container">
+            <div class="lobby-header">
+                <button class="back-btn" onclick="backToModeSelect()">← 返回</button>
+                <h2>👥 双人联机</h2>
+            </div>
+
+            <div class="lobby-section">
+                <div class="lobby-section-title">创建房间</div>
+                <div class="setting-section">
+                    <div class="section-label">棋盘形状</div>
+                    <div class="shape-row">
+                        <button class="side-btn mp-side-btn selected" data-sides="4" onclick="mpSelectSides(4)">正方形</button>
+                        <button class="side-btn mp-side-btn" data-sides="6" onclick="mpSelectSides(6)">六边形</button>
+                        <button class="side-btn mp-side-btn" data-sides="8" onclick="mpSelectSides(8)">八边形</button>
+                        <button class="side-btn mp-side-btn" data-sides="3" onclick="mpSelectSides(3)">三角形</button>
+                        <button class="side-btn mp-side-btn" data-sides="5" onclick="mpSelectSides(5)">五边形</button>
+                        <button class="side-btn mp-side-btn" data-sides="34" onclick="mpSelectSides(34)">扭棱正方</button>
+                        <button class="side-btn mp-side-btn" data-sides="36" onclick="mpSelectSides(36)">三六混合</button>
+                    </div>
+                </div>
+                <div class="setting-section">
+                    <div class="section-label">难度选择</div>
+                    <div class="difficulty-row">
+                        <button class="diff-btn mp-diff-btn" data-diff="easy" onclick="mpSelectDifficulty('easy')">简单</button>
+                        <button class="diff-btn mp-diff-btn selected" data-diff="medium" onclick="mpSelectDifficulty('medium')">中等</button>
+                        <button class="diff-btn mp-diff-btn" data-diff="hard" onclick="mpSelectDifficulty('hard')">困难</button>
+                        <button class="diff-btn mp-diff-btn" data-diff="hell" onclick="mpSelectDifficulty('hell')">地狱</button>
+                    </div>
+                </div>
+                <button class="start-btn" onclick="createRoom()">
+                    <span>创建房间</span><span class="start-icon">▶</span>
+                </button>
+            </div>
+
+            <div class="lobby-divider">— 或加入已有房间 —</div>
+
+            <div class="lobby-section">
+                <div class="lobby-section-title">加入房间</div>
+                <div class="join-row">
+                    <input class="room-code-input" id="joinCodeInput" type="text"
+                           maxlength="4" placeholder="输入房间码" oninput="this.value=this.value.toUpperCase()">
+                    <button class="join-btn" onclick="joinRoom()">加入</button>
+                </div>
+                <div class="lobby-error" id="lobbyError"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 等待室屏 -->
+    <div class="waiting-screen" id="waitingScreen" style="display:none">
+        <div class="waiting-container">
+            <div class="waiting-header">
+                <button class="back-btn" onclick="cancelWaiting()">← 取消</button>
+                <h2>等待对方加入</h2>
+            </div>
+            <div class="room-code-display">
+                <div class="room-code-label">房间码</div>
+                <div class="room-code-big" id="waitingRoomCode">----</div>
+                <div class="room-code-hint">把这个码告诉你的朋友</div>
+            </div>
+            <div class="waiting-players">
+                <div class="waiting-player online">
+                    <div class="player-dot"></div>
+                    <div class="player-label">你（已就绪）</div>
+                </div>
+                <div class="waiting-player offline">
+                    <div class="player-dot"></div>
+                    <div class="player-label" id="waitingPartnerLabel">等待中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 游戏界面 -->
     <div class="game-screen" id="gameScreen">
         <!-- 顶部状态栏 -->
@@ -80,8 +175,15 @@
             <div class="game-status">
                 <span class="status-badge">🚩 <span id="flagProgress">0</span>/<span id="totalMinesDisplay">10</span></span>
                 <span class="status-badge">⏱️ <span id="timer">0</span>s</span>
+                <span class="status-badge mp-status" id="mpStatus" style="display:none">🟢 对方在线</span>
             </div>
             <button class="restart-btn" onclick="restartGame()">🔄</button>
+        </div>
+
+        <!-- 联机翻格统计（合作模式时显示） -->
+        <div class="mp-stats" id="mpStats" style="display:none">
+            <span id="mpMyReveal">你：已翻 0 格</span>
+            <span id="mpPartnerReveal">对方：已翻 0 格</span>
         </div>
 
         <!-- 全屏游戏区域 -->
@@ -109,6 +211,7 @@
     <script src="shared/haptics.js?v=20260308a"></script>
     <script src="geometry.js?v=20260311a"></script>
     <script src="renderer.js?v=20260311a"></script>
+    <script src="multiplayer.js?v=20260311a"></script>
     <script src="game.js?v=20260311a"></script>
 </body>
 </html>
