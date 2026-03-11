@@ -54,7 +54,17 @@ let rows     = 10;
 let cols     = 10;
 let sides    = 4;
 let cellSize = 44;
-const DEFAULT_CELL_SIZE = 40; // 所有模式统一的默认格子大小
+const DEFAULT_CELL_SIZE = 40; // 基准格子大小（sides=4 正方形边长 / sides=6|8 的参考尺寸）
+
+// 各模式的有效 cellSize 缩放因子，确保基准多边形视觉大小一致：
+//   sides=34：正方形边长 = cellSize/2，需乘 2 才能与 sides=4 等大
+//   sides=36：rectification 六边形边长 = √3·cellSize/2，需除以 √3 才能与 sides=6 等大
+//   其他模式：不缩放
+function _effectiveCellSize() {
+    if (sides === 34) return DEFAULT_CELL_SIZE * 2;
+    if (sides === 36) return DEFAULT_CELL_SIZE / Math.sqrt(3);
+    return DEFAULT_CELL_SIZE;
+}
 const MIN_SCALE = 1;          // 最小缩放比例
 const MAX_SCALE = 2;          // 最大缩放比例
 const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 34, 36]);
@@ -191,7 +201,7 @@ function selectSides(s) {
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
-    cellSize = DEFAULT_CELL_SIZE;
+    cellSize = _effectiveCellSize();
     if (!gameStarted) {
         // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
         if (currentDifficulty !== 'custom') _applyDifficultyPreset(currentDifficulty);
@@ -282,7 +292,7 @@ function initGame() {
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
-    cellSize = DEFAULT_CELL_SIZE;
+    cellSize = _effectiveCellSize();
 
     // 非自定义模式：直接从预设读取，不依赖滑动条当前值
     if (currentDifficulty !== 'custom') {
