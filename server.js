@@ -4,7 +4,7 @@ const { WebSocketServer } = require('ws');
 const PORT = 8765;
 const wss = new WebSocketServer({ port: PORT });
 
-// rooms: code → { host: ws|null, guest: ws|null, boardInit: msg|null, reconnectTimer: id|null }
+// rooms: code → { host: ws|null, guest: ws|null, config: obj|null, boardInit: msg|null }
 const rooms = new Map();
 
 function generateCode() {
@@ -33,21 +33,6 @@ function getRoomByWs(ws) {
     return null;
 }
 
-function scheduleRoomDestroy(code) {
-    const room = rooms.get(code);
-    if (!room) return;
-    if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
-    room.reconnectTimer = setTimeout(() => {
-        const r = rooms.get(code);
-        if (!r) return;
-        // 通知留守方
-        const survivor = r.host || r.guest;
-        send(survivor, { type: 'room-destroyed' });
-        rooms.delete(code);
-        console.log(`[room] ${code} destroyed after timeout`);
-    }, 30000);
-}
-
 wss.on('connection', (ws) => {
     console.log('[ws] client connected');
 
@@ -57,7 +42,7 @@ wss.on('connection', (ws) => {
 
         if (msg.type === 'create') {
             const code = generateCode();
-            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, reconnectTimer: null });
+            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null });
             ws._roomCode = code;
             ws._role = 'host';
             send(ws, { type: 'room-created', code, role: 'host' });
@@ -75,43 +60,20 @@ wss.on('connection', (ws) => {
                 send(ws, { type: 'error', code: 'ROOM_NOT_FOUND' }); return;
             }
 
-            // 断线重连：host 槽位空（guest 留守，等待 host 重连）
-            if (!room.host && room.guest) {
-                if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
-                room.reconnectTimer = null;
-                room.host = ws;
-                ws._roomCode = code;
-                ws._role = 'host';
-                send(ws, { type: 'room-joined', code, role: 'host', config: room.config || {} });
-                if (room.boardInit) send(ws, room.boardInit);
-                send(room.guest, { type: 'partner-rejoined' });
-                console.log(`[room] ${code} host reconnected`);
-                return;
-            }
-
             // 房间已满
             if (room.host && room.guest) {
                 send(ws, { type: 'error', code: 'ROOM_FULL' }); return;
             }
 
-            // 正常加入 / guest 断线重连（host 在，guest 槽位空）
+            // 正常加入
             if (room.host && !room.guest) {
-                if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
-                room.reconnectTimer = null;
                 room.guest = ws;
                 ws._roomCode = code;
                 ws._role = 'guest';
                 const config = room.config || {};
                 send(ws, { type: 'room-joined', code, role: 'guest', config });
-                if (room.boardInit) {
-                    // 有 boardInit 说明是断线重连，发 partner-rejoined
-                    send(ws, room.boardInit);
-                    send(room.host, { type: 'partner-rejoined' });
-                    console.log(`[room] ${code} guest reconnected`);
-                } else {
-                    send(room.host, { type: 'partner-joined' });
-                    console.log(`[room] ${code} guest joined`);
-                }
+                send(room.host, { type: 'partner-joined' });
+                console.log(`[room] ${code} guest joined`);
                 return;
             }
 
@@ -137,12 +99,9 @@ wss.on('connection', (ws) => {
         const { code, room } = entry;
         const partner = getPartner(room, ws);
 
-        if (room.host === ws) room.host = null;
-        else if (room.guest === ws) room.guest = null;
-
         send(partner, { type: 'partner-left' });
-        scheduleRoomDestroy(code);
-        console.log(`[room] ${code} a player disconnected`);
+        rooms.delete(code);
+        console.log(`[room] ${code} destroyed (player disconnected)`);
     });
 });
 
