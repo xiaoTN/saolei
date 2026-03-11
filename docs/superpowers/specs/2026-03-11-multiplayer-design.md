@@ -56,7 +56,8 @@
 职责：
 - 管理房间码 → 房间成员映射
 - 转发消息：Player1 的消息转给 Player2，反之亦然
-- 不存储任何游戏状态（纯中转）
+- 不存储 revealed/flagged 等游戏运行状态，但缓存最新的 `board-init` 消息，断线重连时补发给重连方
+- 持有断线计时器，30秒内未重连则销毁房间
 
 技术选型：Node.js 原生 `ws` 包，约 80 行
 
@@ -99,22 +100,29 @@ MP.onPartnerLeft = () => {}        // 对方断开回调
 
 #### `game.js`
 
+**新增函数 `revealCells(keys, opts)`：** 批量翻格，用于接收远端 chord 列表时调用，内部循环调用 `revealCell`，传入 `fromRemote: true` 避免再次发送。
+
 在以下操作后触发 `MP.send()`：
-- `handleClick()`（**左键 = 插旗**，符合项目约定）
+- `handleClick()`（**左键 = 插旗**，符合项目约定）：同时同步 `mineCount` 增减
 - `handleRightClick()`（**右键/长按 = 翻格**，符合项目约定）
-- chord 操作（携带展开后的完整格子列表）
-- 首次点击生成棋盘后，发送 `board-init`
+- chord 操作：本地展开完成后（含踩雷判断），将实际翻开的格子列表（不含雷格）发送给对方；若 chord 过程中踩雷，额外发送 `{ type: 'reveal', key: mineKey }`，让对方同步踩雷
+- 首次点击（`role === 'host'`）生成棋盘后，发送 `board-init`
 
 联机模式下新增逻辑分支：
-- `firstClick === true` 且 `role === 'guest'` → 锁定交互，等待 `board-init`
+- `firstClick === true` 且 `role === 'guest'` → **在 `handleClick` 和 `handleRightClick` 两个入口均需检测**，锁定交互，等待 `board-init`
 - `firstClick === true` 且 `role === 'host'` → 正常生成棋盘，然后发送 `board-init`
 
-接收远端消息时调用对应游戏函数，传入 `fromRemote: true` 标志，跳过再次发送：
+**mineCount（旗子计数）同步：** `mineCount` 通过操作同步自然保持一致——对方插旗/取消旗的 `flag` 消息到达后，本地执行 `toggleFlag`，会同步调整 `mineCount`，无需额外处理。
+
+接收远端消息时调用对应游戏函数：
 ```js
-MP.onMessage = ({ type, key }) => {
-  if (type === 'reveal') revealCell(key, { fromRemote: true });
-  if (type === 'flag')   toggleFlag(key, { fromRemote: true });
-  if (type === 'chord')  chordCell(key, { fromRemote: true });
+MP.onMessage = (msg) => {
+  const { type, key, keys } = msg;
+  if (type === 'reveal')     revealCell(key, { fromRemote: true });
+  if (type === 'flag')       toggleFlag(key, { fromRemote: true });
+  if (type === 'chord')      revealCells(keys, { fromRemote: true });
+  if (type === 'board-init') initBoardFromRemote(msg.mineLocations);
+  // msg.mineLocations 是字符串数组，initBoardFromRemote 内部解析为内部格式
 };
 ```
 
@@ -182,9 +190,9 @@ chord（快速开雷）在本地展开后，将展开的完整格子列表发送
 ### 断线处理
 
 - 任一方断线 → 另一方收到 `partner-left`，游戏**暂停**，显示「对方已断线，等待重连...」
-- 断线方在 30 秒内重连并重新加入房间 → 游戏恢复（服务器保留房间状态 30 秒）
-- 超过 30 秒未重连 → 服务器销毁房间，双方显示「连接已断开」，回到主界面
-- 服务器职责新增：持有断线计时器，超时清除房间
+- 断线方在 30 秒内重连并发送 `{ type: 'join', code: 'A3F7' }` 重新加入同一房间
+- 服务器重新配对成功后，向重连方重放缓存的 `board-init` 消息（雷位信息），重连方在本地重建棋盘；由于翻格/插旗状态不缓存，双端棋盘视觉状态会有差异，这是可接受的简化行为（留言提示「已重新连接，但部分状态可能不同步」）
+- 超过 30 秒未重连 → 服务器销毁房间，留守方显示「连接已断开」，回到主界面
 
 ### 错误处理（前端）
 
