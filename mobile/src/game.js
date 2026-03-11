@@ -54,59 +54,84 @@ let rows     = 10;
 let cols     = 10;
 let sides    = 4;
 let cellSize = 44;
-const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 36]);
+const DEFAULT_CELL_SIZE = 40; // 基准格子大小（sides=4 正方形边长 / sides=6|8 的参考尺寸）
+
+// 各模式的有效 cellSize，确保主要多边形面积与 sides=4 正方形面积（40²=1600px²）一致：
+//   sides=4:  正方形面积 = cellSize²                          → cellSize = 40
+//   sides=34: 正方形面积 = (cellSize/2)²                     → cellSize = 80
+//   sides=8:  正八边形面积 = 2(1+√2)·(cellSize/(1+√2))²      → cellSize = √(800(1+√2)) ≈ 43.95
+//   sides=6:  正六边形面积 = (3√3/2)·(cellSize/2)²           → cellSize = 2√(3200/(3√3)) ≈ 49.63
+//   sides=36: rectification 六边形面积 = 9√3·cellSize²/8     → cellSize = √(12800/(9√3)) ≈ 28.64
+//   其他模式（3,5）：不缩放
+function _effectiveCellSize() {
+    const S = DEFAULT_CELL_SIZE; // 基准边长 40
+    const TARGET_AREA = S * S;   // 目标面积 1600
+    if (sides === 34) return S * 2;
+    if (sides === 8)  return Math.sqrt(TARGET_AREA * (1 + Math.SQRT2) / 2);
+    if (sides === 6)  return 2 * Math.sqrt(TARGET_AREA * 2 / (3 * Math.sqrt(3)));
+    if (sides === 36) return Math.sqrt(TARGET_AREA * 8 / (9 * Math.sqrt(3)));
+    return S;
+}
+const MIN_SCALE = 1;          // 最小缩放比例
+const MAX_SCALE = 2;          // 最大缩放比例
+const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 34, 36]);
 
 let currentDifficulty = 'medium';
 let gameStarted = false; // 游戏是否已开始（用于界面切换）
 
 // 各难度在不同边数下的预设 [rows, cols, mines]
 // 难度预设 [rows, cols, mines]
-// 参考 Windows 经典扫雷标准（初级9x9/10雷12%，中级16x16/40雷16%，专家16x30/99雷21%）
-// 各棋盘类型按邻居数调整体感难度：邻居越多信息越丰富，可适当提高密度
+// 目标雷密度：easy≈12%，medium≈16%，hard≈21%，hell≈25%
+// 注意：不同模式格子数计算方式不同（见各模式注释），雷数按实际格子数×目标密度取整
 const DIFFICULTY_PRESETS = {
     3: {
-        // 三角形实际可用信息量接近正方形，密度对齐经典标准
-        easy:   [9,  16,  18],   // 144格，密度 12.5%
-        medium: [12, 20,  40],   // 240格，密度 16.7%
-        hard:   [16, 28, 100],   // 448格，密度 22.3%
-        hell:   [100, 100, 2500],// 10000格，密度 25.0%
+        // 三角形：实际格子数 = rows*(cols*2)，密度对齐经典标准
+        easy:   [9,  16,  35],   // 288格，密度 12.2%
+        medium: [12, 20,  77],   // 480格，密度 16.0%
+        hard:   [16, 28, 188],   // 896格，密度 21.0%
+        hell:   [100, 100, 5000],// 20000格，密度 25.0%
     },
     4: {
         // 对齐 Windows 经典标准
         easy:   [9,  9,  10],    // 81格，密度 12.3%
-        medium: [16, 16, 40],    // 256格，密度 15.6%
-        hard:   [16, 30, 99],    // 480格，密度 20.6%
+        medium: [16, 16, 41],    // 256格，密度 16.0%
+        hard:   [16, 30, 101],   // 480格，密度 21.0%
         hell:   [100, 100, 2500],// 10000格，密度 25.0%
     },
     5: {
-        // Cairo 五边形镶嵌，每组4个五边形
-        // rows/cols 是"组"的数量，实际格子数 = rows*cols*4
-        easy:   [5,  5,  20],    // 100格，密度 20%
-        medium: [8,  8,  51],    // 256格，密度 20%
-        hard:   [10, 10, 100],   // 400格，密度 25%
-        hell:   [25, 25, 1250],  // 2500格，密度 50%
+        // Cairo 五边形：实际格子数 = rows*cols*4
+        easy:   [5,  5,  12],    // 100格，密度 12.0%
+        medium: [8,  8,  41],    // 256格，密度 16.0%
+        hard:   [10, 10, 84],    // 400格，密度 21.0%
+        hell:   [25, 25, 625],   // 2500格，密度 25.0%
     },
     6: {
-        // 六边形6邻居，信息量略少于正方形8邻居，密度略低
-        easy:   [8,  8,  10],    // 64格，密度 15.6%
-        medium: [11, 13, 30],    // 143格，密度 21.0%  ← 体感≈正方形中等
-        hard:   [14, 18, 60],    // 252格，密度 23.8%
+        // 六边形：实际格子数 = rows*cols
+        easy:   [10, 10, 12],    // 100格，密度 12.0%
+        medium: [13, 15, 31],    // 195格，密度 15.9%
+        hard:   [16, 20, 67],    // 320格，密度 20.9%
         hell:   [100, 100, 2500],// 10000格，密度 25.0%
     },
     8: {
-        // 八边形+菱形混合，总格数 = rows*cols + (rows-1)*(cols-1)
-        easy:   [5,  6,  10],    // 30+20=50格，密度 20.0%
-        medium: [7,  8,  28],    // 56+42=98格，密度 28.6%
-        hard:   [9, 10,  55],    // 90+72=162格，密度 34.0%
-        hell:   [100, 100, 2500],// 扩展网格总格数更高，但行列与雷数固定
+        // 八边形+正方形：实际格子数 = rows*cols + (rows-1)*(cols-1)
+        easy:   [6,  8,  10],    // 83格，密度 12.0%
+        medium: [9,  10, 26],    // 162格，密度 16.0%
+        hard:   [12, 13, 60],    // 288格，密度 20.8%
+        hell:   [100, 100, 4950],// 19801格，密度 25.0%
     },
     36: {
-        // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
-        // 总格数 ≈ 2*rows*cols + rows + cols
-        easy:   [6,  6,  15],   // 约 84格，密度 ~18%
-        medium: [8,  8,  30],   // 约 144格，密度 ~21%
-        hard:   [10, 10, 55],   // 约 220格，密度 ~25%
-        hell:   [100, 100, 2500],
+        // 三六混合：实际格子数 = 2*rows*cols + rows + cols
+        easy:   [7,  8,  15],   // 127格，密度 11.8%
+        medium: [9,  10, 32],   // 199格，密度 16.1%
+        hard:   [12, 13, 71],   // 337格，密度 21.1%
+        hell:   [100, 100, 5050],// 20200格，密度 25.0%
+    },
+    34: {
+        // 扭棱正方形：实际格子数 ≈ 6*rows*cols（每基本域 2 正方形 + 4 三角形）
+        easy:   [4,  4,  12],    // ≈96格，密度 ≈12.5%
+        medium: [5,  5,  24],    // ≈150格，密度 ≈16%
+        hard:   [7,  7,  62],    // ≈294格，密度 ≈21%
+        hell:   [15, 15, 338],   // ≈1350格，密度 ≈25%
     },
 };
 
@@ -183,8 +208,7 @@ function selectSides(s) {
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
-    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
-    cellSize = sizeMap[sides] || 44;
+    cellSize = _effectiveCellSize();
     if (!gameStarted) {
         // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
         if (currentDifficulty !== 'custom') _applyDifficultyPreset(currentDifficulty);
@@ -250,6 +274,9 @@ function _updatePreviewInfo() {
     let totalCells;
     if (sides === 8) {
         totalCells = rows * cols + (rows - 1) * (cols - 1);
+    } else if (sides === 34) {
+        // 扭棱正方形：使用缓存计算精确格子数
+        totalCells = rows * cols * 6; // 每基本域 2 正方形 + 4 三角形
     } else if (sides === 36) {
         // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
         totalCells = rows * cols + rows * cols + rows + cols;
@@ -272,8 +299,7 @@ function initGame() {
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
-    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
-    cellSize = sizeMap[sides] || 44;
+    cellSize = _effectiveCellSize();
 
     // 非自定义模式：直接从预设读取，不依赖滑动条当前值
     if (currentDifficulty !== 'custom') {
@@ -641,7 +667,7 @@ function _setSettingsLocked(locked) {
     });
 }
 
-// ─── 棋盘平移 ──────────────────────────────────────────────────
+// ─── 棋盘平移与缩放 ──────────────────────────────────────────────────
 
 // 拖动超过此阈值才进入平移模式，否则视为点击
 let _isPanning = false;
@@ -653,17 +679,26 @@ let _isPanning = false;
     let startX = 0, startY = 0;
     let panX = 0, panY = 0;
     let lastPanX = 0, lastPanY = 0;
+    let scale = 1; // 缩放比例
     let wheelDX = 0, wheelDY = 0;
     let wheelRAF = 0;
     let touchPanRAF = 0;
     let wheelPanCleanupTimer = 0;
+
+    // 双指缩放相关
+    let pinchStartDist = 0;
+    let pinchStartScale = 1;
+    let pinchStartCenter = { x: 0, y: 0 };
+    let pinchStartPan = { x: 0, y: 0 };
+    let isPinching = false;
 
     function getViewport() { return document.getElementById('boardViewport'); }
     function getBoard()    { return document.getElementById('board'); }
 
     function clampPan(vp, board, nx, ny) {
         const vpW = vp.clientWidth,  vpH = vp.clientHeight;
-        const bW  = board.offsetWidth, bH = board.offsetHeight;
+        // 缩放后的棋盘尺寸
+        const bW  = board.offsetWidth * scale, bH = board.offsetHeight * scale;
         const minX = bW > vpW ? -(bW - vpW) / 2 : 0;
         const minY = bH > vpH ? -(bH - vpH) / 2 : 0;
         const maxX = bW > vpW ? (bW - vpW) / 2 : 0;
@@ -677,15 +712,15 @@ let _isPanning = false;
     function applyTransform() {
         const board = getBoard();
         if (board) {
-            // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移
-            board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px)`;
+            // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移和缩放
+            board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px) scale(${scale})`;
         }
     }
 
     function _scheduleWheelPanClassClear() {
         clearTimeout(wheelPanCleanupTimer);
         wheelPanCleanupTimer = setTimeout(() => {
-            if (!dragging) getViewport()?.classList.remove('panning');
+            if (!dragging && !isPinching) getViewport()?.classList.remove('panning');
         }, 120);
     }
 
@@ -701,13 +736,77 @@ let _isPanning = false;
         _scheduleWheelPanClassClear();
     }
 
-    function onWheel(e) {
-        if (e.ctrlKey) return; // 保留浏览器缩放手势
+    // 计算两点距离
+    function getTouchDistance(t1, t2) {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.hypot(dx, dy);
+    }
+
+    // 计算两点中点
+    function getTouchCenter(t1, t2) {
+        return {
+            x: (t1.clientX + t2.clientX) / 2,
+            y: (t1.clientY + t2.clientY) / 2
+        };
+    }
+
+    // 缩放到指定点（以视口坐标为中心）
+    function zoomAtPoint(newScale, centerX, centerY) {
         const vp = getViewport(), board = getBoard();
         if (!vp || !board) return;
 
-        const canPanX = board.offsetWidth > vp.clientWidth;
-        const canPanY = board.offsetHeight > vp.clientHeight;
+        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        if (clampedScale === scale) return;
+
+        // 视口中心相对于棋盘的位置
+        const vpRect = vp.getBoundingClientRect();
+        const boardRect = board.getBoundingClientRect();
+
+        // 计算缩放中心相对于棋盘当前显示位置的比例
+        const boardCenterX = boardRect.left + boardRect.width / 2;
+        const boardCenterY = boardRect.top + boardRect.height / 2;
+
+        // 缩放前后棋盘中心偏移
+        const scaleRatio = clampedScale / scale;
+
+        // 调整 pan 以保持缩放中心不变
+        const dx = centerX - boardCenterX;
+        const dy = centerY - boardCenterY;
+
+        panX = panX + dx * (1 - scaleRatio);
+        panY = panY + dy * (1 - scaleRatio);
+
+        scale = clampedScale;
+
+        // 重新约束平移范围
+        [panX, panY] = clampPan(vp, board, panX, panY);
+        applyTransform();
+    }
+
+    function onWheel(e) {
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+
+        // Ctrl+滚轮：缩放
+        if (e.ctrlKey) {
+            e.preventDefault();
+            _isPanning = true;
+
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = scale * delta;
+
+            zoomAtPoint(newScale, e.clientX, e.clientY);
+
+            vp.classList.add('panning');
+            _scheduleWheelPanClassClear();
+            setTimeout(() => { _isPanning = false; }, 30);
+            return;
+        }
+
+        // 普通滚轮：平移
+        const canPanX = board.offsetWidth * scale > vp.clientWidth;
+        const canPanY = board.offsetHeight * scale > vp.clientHeight;
         if (!canPanX && !canPanY) return;
 
         const dx = canPanX ? e.deltaX : 0;
@@ -755,54 +854,124 @@ let _isPanning = false;
 
     // ── 触摸（移动端）──
     function onTouchStart(e) {
-        if (e.touches.length !== 1) return;
-        dragging = true;
-        _isPanning = false;
-        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-        lastPanX = panX; lastPanY = panY;
-    }
+        if (e.touches.length === 1) {
+            // 单指：准备平移
+            dragging = true;
+            isPinching = false;
+            _isPanning = false;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            lastPanX = panX;
+            lastPanY = panY;
+        } else if (e.touches.length === 2) {
+            // 双指：准备缩放+平移
+            isPinching = true;
+            dragging = false;
+            _isPanning = true;
 
-    function onTouchMove(e) {
-        if (!dragging || e.touches.length !== 1) return;
-        const dx = e.touches[0].clientX - startX;
-        const dy = e.touches[0].clientY - startY;
-        if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-
-        if (!_isPanning) {
-            // 刚越过阈值：取消所有长按计时器，防止误触发开格子
+            // 取消所有长按计时器
             Object.keys(touchHoldTimers).forEach(k => {
                 clearTimeout(touchHoldTimers[k]);
                 delete touchHoldTimers[k];
                 delete touchLongPressFired[k];
             });
-        }
-        _isPanning = true;
-        e.preventDefault(); // 阻止页面滚动
-        getViewport()?.classList.add('panning');
-        const vp = getViewport(), board = getBoard();
-        if (!vp || !board) return;
-        [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
-        // 使用 RAF 节流，避免频繁重绘
-        if (!touchPanRAF) {
-            touchPanRAF = requestAnimationFrame(() => {
-                touchPanRAF = 0;
-                applyTransform();
-            });
+
+            pinchStartDist = getTouchDistance(e.touches[0], e.touches[1]);
+            pinchStartScale = scale;
+            pinchStartCenter = getTouchCenter(e.touches[0], e.touches[1]);
+            pinchStartPan = { x: panX, y: panY };
+
+            // 记录初始触摸位置用于计算平移
+            startX = pinchStartCenter.x;
+            startY = pinchStartCenter.y;
+            lastPanX = panX;
+            lastPanY = panY;
+
+            getViewport()?.classList.add('panning');
         }
     }
 
-    function onTouchEnd() {
-        if (!dragging) return;
-        dragging = false;
-        // 确保最后一次 transform 被应用
-        if (touchPanRAF) {
-            cancelAnimationFrame(touchPanRAF);
-            touchPanRAF = 0;
-            applyTransform();
+    function onTouchMove(e) {
+        if (e.touches.length === 1 && dragging && !isPinching) {
+            // 单指平移
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+            if (!_isPanning) {
+                // 刚越过阈值：取消所有长按计时器，防止误触发开格子
+                Object.keys(touchHoldTimers).forEach(k => {
+                    clearTimeout(touchHoldTimers[k]);
+                    delete touchHoldTimers[k];
+                    delete touchLongPressFired[k];
+                });
+            }
+            _isPanning = true;
+            e.preventDefault();
+            getViewport()?.classList.add('panning');
+            const vp = getViewport(), board = getBoard();
+            if (!vp || !board) return;
+            [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
+            if (!touchPanRAF) {
+                touchPanRAF = requestAnimationFrame(() => {
+                    touchPanRAF = 0;
+                    applyTransform();
+                });
+            }
+        } else if (e.touches.length === 2 && isPinching) {
+            // 双指缩放+平移
+            e.preventDefault();
+
+            const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+            const currentCenter = getTouchCenter(e.touches[0], e.touches[1]);
+
+            // 计算新缩放比例
+            const newScale = pinchStartScale * (currentDist / pinchStartDist);
+            scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+
+            // 计算平移：双指中点的移动
+            const dx = currentCenter.x - pinchStartCenter.x;
+            const dy = currentCenter.y - pinchStartCenter.y;
+
+            const vp = getViewport(), board = getBoard();
+            if (vp && board) {
+                [panX, panY] = clampPan(vp, board, pinchStartPan.x + dx, pinchStartPan.y + dy);
+            }
+
+            if (!touchPanRAF) {
+                touchPanRAF = requestAnimationFrame(() => {
+                    touchPanRAF = 0;
+                    applyTransform();
+                });
+            }
         }
-        getViewport()?.classList.remove('panning');
-        if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
-        else _isPanning = false;
+    }
+
+    function onTouchEnd(e) {
+        if (e.touches.length === 0) {
+            // 所有手指离开
+            if (dragging || isPinching) {
+                dragging = false;
+                isPinching = false;
+                // 确保最后一次 transform 被应用
+                if (touchPanRAF) {
+                    cancelAnimationFrame(touchPanRAF);
+                    touchPanRAF = 0;
+                    applyTransform();
+                }
+                getViewport()?.classList.remove('panning');
+                if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
+                else _isPanning = false;
+            }
+        } else if (e.touches.length === 1 && isPinching) {
+            // 从双指变为单指：切换到单指平移模式
+            isPinching = false;
+            dragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            lastPanX = panX;
+            lastPanY = panY;
+        }
     }
 
     // 脚本在 body 末尾，DOM 已就绪
@@ -826,11 +995,13 @@ let _isPanning = false;
         // 棋盘居中
         panX = 0;
         panY = 0;
+        scale = 1;
         applyTransform();
     }
 
-    window._panReset = () => { panX = 0; panY = 0; applyTransform(); };
+    window._panReset = () => { panX = 0; panY = 0; scale = 1; applyTransform(); };
     window._panCenter = centerPan;
+    window._getScale = () => scale;
 })();
 
 // ─── 入口 ─────────────────────────────────────────────────────

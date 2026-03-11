@@ -377,228 +377,485 @@ function octSqBoardSize() {
 //   gr∈[rows, 2*rows)  + gc∈[0, cols)  → A型三角形 (r=gr-rows, q=gc)
 //   gr∈[2*rows, 3*rows)+ gc∈[0, cols)  → B型三角形 (r=gr-2*rows, q=gc)
 
+let _triHexCache = null;
+
+function _triHexCacheSignature() {
+    return `${rows}|${cols}|${cellSize}`;
+}
+
+function _triHexPointKey(x, y) {
+    return `${x.toFixed(6)},${y.toFixed(6)}`;
+}
+
+function _triHexMidpoint(a, b) {
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+function _triHexCentroid(points) {
+    const sx = points.reduce((sum, p) => sum + p[0], 0);
+    const sy = points.reduce((sum, p) => sum + p[1], 0);
+    return [sx / points.length, sy / points.length];
+}
+
+function _triHexSortPolygon(points) {
+    const [cx, cy] = _triHexCentroid(points);
+    return [...points].sort((a, b) => {
+        const aa = Math.atan2(a[1] - cy, a[0] - cx);
+        const bb = Math.atan2(b[1] - cy, b[0] - cx);
+        return aa - bb;
+    });
+}
+
+// 用标准 pointy-top offset 蜂窝作为“母网格”，再做 rectification。
+function _triHexBaseCenter(row, col) {
+    const s = cellSize;
+    const w = Math.sqrt(3) * s;
+    return [
+        col * w + (row % 2 === 1 ? w / 2 : 0),
+        row * s * 1.5,
+    ];
+}
+
+function _triHexBaseVertices(row, col) {
+    const [cx, cy] = _triHexBaseCenter(row, col);
+    const s = cellSize;
+    const w = Math.sqrt(3) * s / 2;
+    return [
+        [cx,     cy - s    ],
+        [cx + w, cy - s / 2],
+        [cx + w, cy + s / 2],
+        [cx,     cy + s    ],
+        [cx - w, cy + s / 2],
+        [cx - w, cy - s / 2],
+    ];
+}
+
+function _ensureTriHexCache() {
+    const signature = _triHexCacheSignature();
+    if (_triHexCache && _triHexCache.signature === signature) return _triHexCache;
+
+    const rawCells = [];
+    const originalVertexMap = new Map();
+    let triangleIndex = 0;
+
+    const addRawCell = (coord, type, vertices) => {
+        rawCells.push({
+            coord,
+            key: `${coord[0]},${coord[1]}`,
+            type,
+            vertices: _triHexSortPolygon(vertices),
+        });
+    };
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const baseVerts = _triHexBaseVertices(r, c);
+            const mids = [];
+
+            for (let i = 0; i < 6; i++) {
+                mids.push(_triHexMidpoint(baseVerts[i], baseVerts[(i + 1) % 6]));
+            }
+            addRawCell([r, c], 'hex', mids);
+
+            for (let i = 0; i < 6; i++) {
+                const prev = (i + 5) % 6;
+                const vertex = baseVerts[i];
+                const vertexKey = _triHexPointKey(vertex[0], vertex[1]);
+                if (!originalVertexMap.has(vertexKey)) {
+                    originalVertexMap.set(vertexKey, { midpoints: new Map() });
+                }
+                const entry = originalVertexMap.get(vertexKey);
+                const m1 = _triHexMidpoint(baseVerts[prev], vertex);
+                const m2 = _triHexMidpoint(vertex, baseVerts[(i + 1) % 6]);
+                entry.midpoints.set(_triHexPointKey(m1[0], m1[1]), m1);
+                entry.midpoints.set(_triHexPointKey(m2[0], m2[1]), m2);
+            }
+        }
+    }
+
+    for (const entry of originalVertexMap.values()) {
+        const vertices = Array.from(entry.midpoints.values());
+        if (vertices.length !== 3) continue;
+        addRawCell([rows + triangleIndex, 0], 'tri', vertices);
+        triangleIndex++;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cell of rawCells) {
+        for (const [x, y] of cell.vertices) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+    }
+
+    const pad = cellSize;
+    const dx = pad - minX;
+    const dy = pad - minY;
+
+    const cells = [];
+    const cellMap = new Map();
+    const vertexOwners = new Map();
+
+    for (const rawCell of rawCells) {
+        const shiftedVerts = rawCell.vertices.map(([x, y]) => [x + dx, y + dy]);
+        const cell = {
+            key: rawCell.key,
+            coord: rawCell.coord,
+            type: rawCell.type,
+            vertices: shiftedVerts,
+            neighborKeys: new Set(),
+        };
+        cells.push(cell);
+        cellMap.set(cell.key, cell);
+
+        for (const [vx, vy] of shiftedVerts) {
+            const vertexKey = _triHexPointKey(vx, vy);
+            if (!vertexOwners.has(vertexKey)) vertexOwners.set(vertexKey, []);
+            vertexOwners.get(vertexKey).push(cell.key);
+        }
+    }
+
+    for (const owners of vertexOwners.values()) {
+        const uniqueOwners = [...new Set(owners)];
+        for (let i = 0; i < uniqueOwners.length; i++) {
+            for (let j = 0; j < uniqueOwners.length; j++) {
+                if (i === j) continue;
+                cellMap.get(uniqueOwners[i]).neighborKeys.add(uniqueOwners[j]);
+            }
+        }
+    }
+
+    _triHexCache = {
+        signature,
+        allCells: cells.map(cell => cell.coord),
+        cellMap,
+        boardSize: {
+            width: Math.ceil(maxX - minX + pad * 2) + 4,
+            height: Math.ceil(maxY - minY + pad * 2) + 4,
+        },
+    };
+    return _triHexCache;
+}
+
 function triHexCellType(gr, gc) {
-    if (gr < rows) return 'hex';
-    if (gr < 2 * rows) return 'triA'; // ▶ 由(r,q),(r,q+1),(r-1,q+1)围成
-    return 'triB'; // ◀ 由(r,q),(r+1,q),(r+1,q-1)围成
-}
-
-// 六边形(r,q)中心坐标（pointy-top，边长 a = cellSize/2）
-function _thHexCenter(r, q) {
-    const a = cellSize / 2;
-    const W = Math.sqrt(3) * a; // 六边形宽 = √3·a
-    const pad = a * 1.5; // padding
-    return [q * W + pad, (2 * r + q) * a + pad];
-}
-
-// pointy-top 六边形顶点（从正上顶点开始，顺时针）
-// i=0:正上, i=1:右上, i=2:右下, i=3:正下, i=4:左下, i=5:左上
-function _thHexVerts(r, q) {
-    const a = cellSize / 2;
-    const W = Math.sqrt(3) * a;
-    const [cx, cy] = _thHexCenter(r, q);
-    return [
-        [cx,       cy - a    ], // 0:正上
-        [cx + W/2, cy - a/2  ], // 1:右上
-        [cx + W/2, cy + a/2  ], // 2:右下
-        [cx,       cy + a    ], // 3:正下
-        [cx - W/2, cy + a/2  ], // 4:左下
-        [cx - W/2, cy - a/2  ], // 5:左上
-    ];
-}
-
-// 三角形A（▶尖朝右）顶点：由六边形(r,q),(r,q+1),(r-1,q+1)围成
-// 顶点：(r,q).顶点1, (r,q).顶点2, (r,q+1).顶点5
-// 即：(cx+W/2, cy-a/2), (cx+W/2, cy+a/2), (cx+W, cy)
-function _thTriAVerts(r, q) {
-    const a = cellSize / 2;
-    const W = Math.sqrt(3) * a;
-    const [cx, cy] = _thHexCenter(r, q);
-    return [
-        [cx + W/2, cy - a/2], // (r,q).顶点1
-        [cx + W/2, cy + a/2], // (r,q).顶点2
-        [cx + W,   cy      ], // (r,q+1).顶点0 = (r,q)右方六边形正上顶点
-    ];
-}
-
-// 三角形B（◀尖朝左）顶点：由六边形(r,q),(r+1,q),(r+1,q-1)围成
-// 通过对称推导：(r,q).顶点3, (r,q).顶点4, (r+1,q).顶点5的左侧对称点
-// (r,q).顶点3 = (cx, cy+a)，(r,q).顶点4 = (cx-W/2, cy+a/2)
-// (r+1,q-1) 的顶点1 = ((r+1,q-1)中心 + W/2, (r+1,q-1)cy - a/2)
-//   (r+1,q-1) 中心: cx' = (q-1)W + pad, cy' = (2(r+1)+(q-1))a + pad = (2r+q+1)a + pad
-//   顶点1 = (cx'+W/2, cy'-a/2) = ((q-1)W+pad+W/2, (2r+q+1)a+pad-a/2)
-//         = (qW-W/2+pad, (2r+q)a+pad+a/2)
-//   而(r,q) 中心 cx=qW+pad, cy=(2r+q)a+pad
-//   所以(r+1,q-1).顶点1 = (cx-W/2, cy+a/2) = (r,q).顶点4 ✓（顶点重合验证通过）
-// 三角形B第三顶点 = (r,q).左下方，即 (cx-W, cy)
-//   验证：(r+1,q-1)中心=(qW-W/2+pad,(2r+q+1)a+pad)=(cx-W/2,(cy+a))...
-//   (r+1,q-1).顶点0 = (cx-W/2, cy+a-a) = (cx-W/2, cy)... 不对
-//   重新算(r+1,q-1)中心：r'=r+1, q'=q-1
-//   cx' = (q-1)W + pad = qW - W + pad = cx - W
-//   cy' = (2(r+1)+(q-1))a + pad = (2r+2+q-1)a + pad = (2r+q+1)a + pad = cy + a
-//   (r+1,q-1).顶点0(正上) = (cx-W, cy+a-a) = (cx-W, cy) ✓
-// 三角形B顶点：(r,q).顶点3, (r,q).顶点4, (r+1,q-1).顶点0
-function _thTriBVerts(r, q) {
-    const a = cellSize / 2;
-    const W = Math.sqrt(3) * a;
-    const [cx, cy] = _thHexCenter(r, q);
-    return [
-        [cx,       cy + a  ], // (r,q).顶点3:正下
-        [cx - W/2, cy + a/2], // (r,q).顶点4:左下
-        [cx - W,   cy      ], // (r+1,q-1).顶点0:正上
-    ];
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.type : null;
 }
 
 function triHexVertices(gr, gc) {
-    const type = triHexCellType(gr, gc);
-    if (type === 'hex') return _thHexVerts(gr, gc);
-    if (type === 'triA') return _thTriAVerts(gr - rows, gc);
-    return _thTriBVerts(gr - 2 * rows, gc);
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.vertices : [];
 }
 
-// 枚举所有有效格子
-// 六边形: (gr=r, gc=q), r∈[0,rows), q∈[0,cols)
-// 三角形A: gr=rows+r, gc=q，有效条件：q+1<cols 且 r-1>=0（即r>=1）
-// 三角形B: gr=2*rows+r, gc=q，有效条件：q-1>=0（即q>=1）且 r+1<rows
 function triHexAllCells() {
-    const cells = [];
-    // 六边形
-    for (let r = 0; r < rows; r++)
-        for (let q = 0; q < cols; q++)
-            cells.push([r, q]);
-    // 三角形A（▶）：由(r,q),(r,q+1),(r-1,q+1)围成，需要 q+1<cols 且 r>=1
-    for (let r = 1; r < rows; r++)
-        for (let q = 0; q < cols - 1; q++)
-            cells.push([rows + r, q]);
-    // 三角形B（◀）：由(r,q),(r+1,q),(r+1,q-1)围成，需要 q>=1 且 r+1<rows
-    for (let r = 0; r < rows - 1; r++)
-        for (let q = 1; q < cols; q++)
-            cells.push([2 * rows + r, q]);
-    return cells;
+    return _ensureTriHexCache().allCells;
 }
-
-// 邻居关系（共享至少一个顶点的格子）
-// 六边形(r,q)的邻居：
-//   6个三角形（直接共边）：
-//     A型三角形：锚(r,q)→(rows+r,q), 锚(r+1,q)→(rows+r+1,q), 锚(r,q-1)→(rows+r,q-1)
-//     B型三角形：锚(r,q)→(2*rows+r,q), 锚(r,q+1)→(2*rows+r,q+1), 锚(r-1,q)→(2*rows+r-1,q)
-//   6个六边形（通过三角形相连，共享顶点）：
-//     (r-1,q),(r+1,q),(r,q-1),(r,q+1),(r-1,q+1),(r+1,q-1)
-//
-// 三角形A(锚r,q)的邻居：
-//   3个六边形（直接共边）：(r,q),(r,q+1),(r-1,q+1)
-//   6个三角形（共顶点，每个顶点连接1个其他三角形）：
-//     顶点(r,q).v1 共享：B(r-1,q+1)
-//     顶点(r,q).v2 共享：B(r,q+1)
-//     顶点(r,q+1).v0 = (r,q).v1右边...通过计算得
-//
-// 实际上根据 AGENTS.md 的定义：邻居 = 共享至少一个顶点
-// 对于六边形：所有与其共享顶点的格子（6个三角形+6个六边形=12个）
-// 对于三角形：所有与其共享顶点的格子（3个六边形+其他三角形）
-//   每个顶点处：(3.6)^2 → 2个三角形+2个六边形共享
-//   三角形有3个顶点，每个顶点还有1个其他三角形 → 3个额外三角形邻居
-//   所以三角形邻居：3个六边形 + 6个六边形（通过顶点）+ 3个三角形... 需要精确计算
 
 function triHexNeighbors(gr, gc) {
-    const type = triHexCellType(gr, gc);
-    const nb = [];
-
-    const validHex = (r, q) => r >= 0 && r < rows && q >= 0 && q < cols;
-    const validTriA = (r, q) => r >= 1 && r < rows && q >= 0 && q < cols - 1;
-    const validTriB = (r, q) => r >= 0 && r < rows - 1 && q >= 1 && q < cols;
-
-    const addHex = (r, q) => { if (validHex(r, q)) nb.push([r, q]); };
-    const addTriA = (r, q) => { if (validTriA(r, q)) nb.push([rows + r, q]); };
-    const addTriB = (r, q) => { if (validTriB(r, q)) nb.push([2 * rows + r, q]); };
-
-    if (type === 'hex') {
-        const r = gr, q = gc;
-        // 6个直接三角形邻居（共边）
-        // A型三角形（▶）的锚为(r,q)的A三角形：需要 validTriA(r,q)
-        addTriA(r, q);     // 三角形A锚(r,q)：由(r,q),(r,q+1),(r-1,q+1)围成，共享(r,q)的右边
-        addTriA(r + 1, q); // 三角形A锚(r+1,q)：由(r+1,q),(r+1,q+1),(r,q+1)围成，共享(r,q)右下方
-        addTriA(r, q - 1); // 三角形A锚(r,q-1)：由(r,q-1),(r,q),(r-1,q)围成，共享(r,q)的左上边
-        // B型三角形（◀）
-        addTriB(r, q);     // 三角形B锚(r,q)：由(r,q),(r+1,q),(r+1,q-1)围成，共享(r,q)的左下边
-        addTriB(r, q + 1); // 三角形B锚(r,q+1)：由(r,q+1),(r+1,q+1),(r+1,q)围成，共享(r,q)右下
-        addTriB(r - 1, q); // 三角形B锚(r-1,q)：由(r-1,q),(r,q),(r,q-1)围成，共享(r,q)的左边
-        // 6个通过三角形相连的六边形邻居（共顶点）
-        addHex(r - 1, q);
-        addHex(r + 1, q);
-        addHex(r, q - 1);
-        addHex(r, q + 1);
-        addHex(r - 1, q + 1);
-        addHex(r + 1, q - 1);
-    } else if (type === 'triA') {
-        // 三角形A锚(r,q)：顶点=(r,q).v1,(r,q).v2,(r,q+1).v0
-        // 连接的三个六边形：(r,q),(r,q+1),(r-1,q+1)
-        const r = gr - rows, q = gc;
-        addHex(r, q);
-        addHex(r, q + 1);
-        addHex(r - 1, q + 1);
-        // 通过顶点连接的其他三角形：
-        // v1=(r,q).右上顶点：在该顶点处有 B型三角形锚(r-1,q+1)
-        addTriB(r - 1, q + 1);
-        // v2=(r,q).右下顶点：在该顶点处有 B型三角形锚(r,q+1)
-        addTriB(r, q + 1);
-        // (r,q+1).v0=正上顶点：在该顶点处有 A型三角形锚(r,q+1)
-        addTriA(r, q + 1);
-        // 通过顶点相连的其他六边形（共顶点但不共边）：
-        // v1处：(r-1,q),(r-1,q+1) — (r-1,q+1)已加，加(r-1,q)
-        addHex(r - 1, q);
-        // v2处：(r,q+1),(r+1,q) — (r,q+1)已加，加(r+1,q)
-        addHex(r + 1, q);
-        // (r,q+1).v0处：(r-1,q+1),(r-1,q+2) — (r-1,q+1)已加，加(r-1,q+2)
-        addHex(r - 1, q + 2);
-    } else {
-        // 三角形B锚(r,q)：顶点=(r,q).v3,(r,q).v4,(r+1,q-1).v0
-        // 连接的三个六边形：(r,q),(r+1,q),(r+1,q-1)
-        const r = gr - 2 * rows, q = gc;
-        addHex(r, q);
-        addHex(r + 1, q);
-        addHex(r + 1, q - 1);
-        // 通过顶点连接的其他三角形：
-        // v3=(r,q).正下顶点：在该顶点处有 A型三角形锚(r+1,q-1)
-        addTriA(r + 1, q - 1);
-        // v4=(r,q).左下顶点：在该顶点处有 A型三角形锚(r+1,q)... 
-        // 需验证：v4=(r,q)左下 = (r,q+1).v0处...
-        // 实际上 v4 = (cx-W/2, cy+a/2)，此处有哪些格子？
-        // 在该顶点：(r,q).v4=(r+1,q-1).v1=(r+1,q).v5 → 共享的A三角形锚为(r+1,q)的A三角形
-        addTriA(r + 1, q);
-        // (r+1,q-1).v0处（= v3的下方）：在该顶点有 B型三角形锚(r+1,q-1)
-        addTriB(r + 1, q - 1);
-        // 通过顶点相连的其他六边形：
-        // v3处：(r+1,q),(r+1,q-1) — 已加，还有 (r,q-1)
-        addHex(r, q - 1);
-        // v4处：(r+1,q),(r,q-1) — 已加(r+1,q)，加(r,q-1)...已加；加(r+1,q-1)已加
-        // 重新想v4处的六边形：v4=(cx-W/2,cy+a/2)=共享于(r,q),(r+1,q-1)和另外哪个？
-        // v4 = (r,q).左下 = (r+1,q-1).右上 = (r,q-1).右下... 
-        // (r,q-1)的右下顶点v2=(q-1)W+pad+W/2, (2r+q-1)a+pad+a/2) = (qW-W/2+pad, (2r+q)a+pad-a/2+a/2) ... 不对
-        // (r,q-1)中心: cx=(q-1)W+pad=cx0-W, cy=(2r+q-1)a+pad=cy0-a
-        // (r,q-1).v2 = (cx0-W+W/2, cy0-a+a/2) = (cx0-W/2, cy0-a/2) = (r,q).v5(左上) ≠ v4
-        // (r,q-1).v3 = (cx0-W, cy0-a+a) = (cx0-W, cy0) ← 这是B三角形的第三顶点
-        // 所以 v4 处的六边形：(r,q),(r+1,q-1),(r+1,q) -- 已全部加入
-        addHex(r + 2, q - 1); // (r+1,q-1)的下方六边形？需验证
-        // 暂时不加，按照简单规则：3个共边六边形 + 相邻三角形 + 通过顶点的远程六边形
-        // 实际上简单地：邻居 = 3个hex + 3个tri（共边）+ 共顶点的额外格子
-        // 根据对称性，B三角形的邻居模式应该与A对称
-    }
-
-    return nb;
+    const cell = _ensureTriHexCache().cellMap.get(`${gr},${gc}`);
+    if (!cell) return [];
+    return [...cell.neighborKeys].map(key => key.split(',').map(Number));
 }
 
 function triHexBoardSize() {
-    const a = cellSize / 2;
-    const W = Math.sqrt(3) * a;
-    const pad = a * 1.5;
-    // 最后一个六边形(rows-1, cols-1)的最大坐标
-    const [cx, cy] = _thHexCenter(rows - 1, cols - 1);
-    const maxX = cx + W / 2 + pad;
-    const maxY = cy + a + pad;
-    return {
-        width: Math.ceil(maxX) + 4,
-        height: Math.ceil(maxY) + 4,
+    return _ensureTriHexCache().boardSize;
+}
+
+// ─── 扭棱正方形镶嵌（Snub square tiling, sides=34）──────────────
+// 顶点构型 3.3.4.3.4：每个顶点周围依次是三角形、三角形、正方形、三角形、正方形
+// 参考：https://en.wikipedia.org/wiki/Snub_square_tiling
+//
+// 几何结构：
+//   - 正方形和等边三角形混合，所有边长相等（= a = cellSize/2）
+//   - 每个顶点处按逆时针排列 5 个面，内角序列 60°,60°,90°,60°,90°
+//   - 这是手性平铺（chiral），使用左旋版本
+//
+// 实现方式：
+//   1. 顶点 BFS：从种子顶点出发，按 3.3.4.3.4 构型递归生成所有顶点
+//   2. 面构建：从每个顶点的面序列信息直接构建三角形和正方形
+//   3. 邻居推导：通过顶点共享推导邻居关系
+//   全部通过缓存方式实现（类似 triHex）
+
+let _snubSqCache = null;
+
+function _snubSqCacheSignature() {
+    return `${rows}|${cols}|${cellSize}`;
+}
+
+function _snubSqRoundKey(x, y) {
+    return Math.round(x * 1000) + ',' + Math.round(y * 1000);
+}
+
+function _snubSqSortPolygon(points) {
+    const cx = points.reduce((s, p) => s + p[0], 0) / points.length;
+    const cy = points.reduce((s, p) => s + p[1], 0) / points.length;
+    return [...points].sort((a, b) =>
+        Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx)
+    );
+}
+
+function _ensureSnubSqCache() {
+    const signature = _snubSqCacheSignature();
+    if (_snubSqCache && _snubSqCache.signature === signature) return _snubSqCache;
+
+    const a = cellSize / 2; // 边长
+    const TOL = a * 1e-4;
+    const sqrt3 = Math.sqrt(3);
+
+    // ── 步骤1：参数化生成所有顶点 ──
+    // Snub square tiling 的精确坐标公式（来自 Polytope Wiki）：
+    //   s = √(2+√3) / 4
+    //   每个 (i,j) 单元格内有 4 个顶点偏移：
+    //     A = s*(3-√3, √3-1),  B = s*(1-√3, 3-√3),  C = -A,  D = -B
+    //   平移周期 period = 4s = √(2+√3)（轴对齐）
+    const s_unit = Math.sqrt(2 + sqrt3) / 4; // 单位边长下的 s
+    const period_unit = 4 * s_unit;           // 单位边长下的周期
+    // 缩放到实际边长 a
+    const s = s_unit * a;
+    const period = period_unit * a;
+
+    const vertexOffsets = [
+        [s * (3 - sqrt3), s * (sqrt3 - 1)],    // A
+        [s * (1 - sqrt3), s * (3 - sqrt3)],     // B
+        [s * (sqrt3 - 3), s * (1 - sqrt3)],     // C = -A
+        [s * (sqrt3 - 1), s * (sqrt3 - 3)],     // D = -B
+    ];
+
+    // 棋盘范围：每个基本域 period² 面积含 2 个正方形 + 4 个三角形（共 6 面）
+    // 总面数 ≈ 3*rows*cols → 需要 rows*cols/2 个基本域
+    // 使用 rows/cols 分别控制两个方向的基本域数量
+    const pad = a * 2;
+    const gridN_x = cols;
+    const gridN_y = rows;
+
+    // 生成所有顶点（包含边界外的扩展区域以确保边界面完整）
+    const vertexMap = new Map();
+    const roundKey = _snubSqRoundKey;
+
+    for (let i = -2; i <= gridN_x + 1; i++) {
+        for (let j = -2; j <= gridN_y + 1; j++) {
+            for (const [ox, oy] of vertexOffsets) {
+                const x = pad + ox + i * period;
+                const y = pad + oy + j * period;
+                const key = roundKey(x, y);
+                if (!vertexMap.has(key)) {
+                    vertexMap.set(key, { x, y, key });
+                }
+            }
+        }
+    }
+
+    // ── 步骤2：通过边图找三角形和正方形 ──
+    // 使用空间哈希高效查找边（距离为 a 的顶点对）
+    const CELL_SIZE = a * 1.5;
+    const spatialHash = new Map();
+    const vertices = [...vertexMap.values()];
+
+    function hashKey(x, y) {
+        return Math.floor(x / CELL_SIZE) + ',' + Math.floor(y / CELL_SIZE);
+    }
+
+    for (const v of vertices) {
+        const hk = hashKey(v.x, v.y);
+        if (!spatialHash.has(hk)) spatialHash.set(hk, []);
+        spatialHash.get(hk).push(v);
+    }
+
+    const edgeMap = new Map();
+    for (const v of vertices) {
+        if (!edgeMap.has(v.key)) edgeMap.set(v.key, new Set());
+        const hx = Math.floor(v.x / CELL_SIZE);
+        const hy = Math.floor(v.y / CELL_SIZE);
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const cell = spatialHash.get((hx + dx) + ',' + (hy + dy));
+                if (!cell) continue;
+                for (const u of cell) {
+                    if (u.key === v.key) continue;
+                    const d = Math.hypot(u.x - v.x, u.y - v.y);
+                    if (Math.abs(d - a) < TOL) {
+                        if (!edgeMap.has(u.key)) edgeMap.set(u.key, new Set());
+                        edgeMap.get(v.key).add(u.key);
+                        edgeMap.get(u.key).add(v.key);
+                    }
+                }
+            }
+        }
+    }
+
+    // 面中心必须在棋盘范围内
+    const boundX = pad + gridN_x * period;
+    const boundY = pad + gridN_y * period;
+    function faceCenterInBounds(pts) {
+        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        return cx > 0 && cy > 0 && cx < boundX && cy < boundY;
+    }
+
+    const rawCells = [];
+    const faceKeySet = new Set();
+    const expectedTriArea = sqrt3 / 4 * a * a;
+
+    // 找三角形（3个顶点两两相连，面积验证为等边三角形）
+    for (const [v1k, v1Nb] of edgeMap) {
+        for (const v2k of v1Nb) {
+            if (v2k <= v1k) continue;
+            const v2Nb = edgeMap.get(v2k);
+            if (!v2Nb) continue;
+            for (const v3k of v2Nb) {
+                if (v3k <= v2k) continue;
+                if (v1Nb.has(v3k)) {
+                    const fk = [v1k, v2k, v3k].sort().join('|');
+                    if (faceKeySet.has(fk)) continue;
+                    const p1 = vertexMap.get(v1k), p2 = vertexMap.get(v2k), p3 = vertexMap.get(v3k);
+                    const pts = [[p1.x, p1.y], [p2.x, p2.y], [p3.x, p3.y]];
+                    // 验证面积（等边三角形）
+                    const area = Math.abs((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y)) / 2;
+                    if (Math.abs(area - expectedTriArea) < TOL * a && faceCenterInBounds(pts)) {
+                        faceKeySet.add(fk);
+                        rawCells.push({
+                            type: 'tri',
+                            vertices: _snubSqSortPolygon(pts),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 找正方形（4个顶点形成环，边长 a，对角线 a√2）
+    for (const [v1k, v1Nb] of edgeMap) {
+        for (const v2k of v1Nb) {
+            if (v2k <= v1k) continue;
+            const v2Nb = edgeMap.get(v2k);
+            for (const v3k of v2Nb) {
+                if (v3k === v1k) continue;
+                const v3Nb = edgeMap.get(v3k);
+                if (!v3Nb) continue;
+                for (const v4k of v3Nb) {
+                    if (v4k === v2k || v4k === v1k) continue;
+                    if (v1Nb.has(v4k)) {
+                        const p1 = vertexMap.get(v1k), p2 = vertexMap.get(v2k);
+                        const p3 = vertexMap.get(v3k), p4 = vertexMap.get(v4k);
+                        const d13 = Math.hypot(p3.x - p1.x, p3.y - p1.y);
+                        const d24 = Math.hypot(p4.x - p2.x, p4.y - p2.y);
+                        if (Math.abs(d13 - a * Math.SQRT2) < TOL && Math.abs(d24 - a * Math.SQRT2) < TOL) {
+                            const fk = [v1k, v2k, v3k, v4k].sort().join('|');
+                            if (faceKeySet.has(fk)) continue;
+                            const pts = [[p1.x, p1.y], [p2.x, p2.y], [p3.x, p3.y], [p4.x, p4.y]];
+                            if (faceCenterInBounds(pts)) {
+                                faceKeySet.add(fk);
+                                rawCells.push({
+                                    type: 'sq',
+                                    vertices: _snubSqSortPolygon(pts),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 分配连续编号
+    for (let i = 0; i < rawCells.length; i++) {
+        rawCells[i].coord = [i, 0];
+        rawCells[i].key = `${i},0`;
+    }
+
+    // ── 步骤3：构建邻居关系（共享至少一个顶点） ──
+    const cellMap = new Map();
+    const vertexOwners = new Map();
+
+    for (const rawCell of rawCells) {
+        const cell = {
+            key: rawCell.key,
+            coord: rawCell.coord,
+            type: rawCell.type,
+            vertices: rawCell.vertices,
+            neighborKeys: new Set(),
+        };
+        cellMap.set(cell.key, cell);
+
+        for (const [vx, vy] of rawCell.vertices) {
+            const vertexKey = roundKey(vx, vy);
+            if (!vertexOwners.has(vertexKey)) vertexOwners.set(vertexKey, []);
+            vertexOwners.get(vertexKey).push(cell.key);
+        }
+    }
+
+    for (const owners of vertexOwners.values()) {
+        const uniqueOwners = [...new Set(owners)];
+        for (let i = 0; i < uniqueOwners.length; i++) {
+            for (let j = 0; j < uniqueOwners.length; j++) {
+                if (i === j) continue;
+                cellMap.get(uniqueOwners[i]).neighborKeys.add(uniqueOwners[j]);
+            }
+        }
+    }
+
+    // ── 步骤4：平移坐标，确保左上角留出 pad 空白 ──
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cell of rawCells) {
+        for (const [x, y] of cell.vertices) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+    }
+
+    // 将整体平移，使顶点最小坐标恰好为 pad
+    const shiftX = pad - minX;
+    const shiftY = pad - minY;
+    for (const cell of rawCells) {
+        cell.vertices = cell.vertices.map(([x, y]) => [x + shiftX, y + shiftY]);
+    }
+    // 同步更新 cellMap 中的顶点（rawCells.vertices 已被 map 创建了新数组）
+    for (const rawCell of rawCells) {
+        const mapCell = cellMap.get(rawCell.key);
+        if (mapCell) mapCell.vertices = rawCell.vertices;
+    }
+    // 重新计算 max（平移后）
+    maxX += shiftX;
+    maxY += shiftY;
+
+    _snubSqCache = {
+        signature,
+        allCells: rawCells.map(cell => cell.coord),
+        cellMap,
+        boardSize: {
+            width: Math.ceil(maxX + pad) + 4,
+            height: Math.ceil(maxY + pad) + 4,
+        },
     };
+    return _snubSqCache;
+}
+
+function snubSqCellType(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.type : null;
+}
+
+function snubSqVertices(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.vertices : [];
+}
+
+function snubSqAllCells() {
+    return _ensureSnubSqCache().allCells;
+}
+
+function snubSqNeighbors(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    if (!cell) return [];
+    return [...cell.neighborKeys].map(key => key.split(',').map(Number));
+}
+
+function snubSqBoardSize() {
+    return _ensureSnubSqCache().boardSize;
 }
 
 // ─── Cairo 五边形镶嵌（5边）────────────────────────────────────
@@ -788,6 +1045,7 @@ function getCellVertices(sides, row, col) {
     if (sides === 5) return cairoVertices(row, col);   // row,col 是扩展网格坐标 gr,gc
     if (sides === 6) return hexVertices(row, col);
     if (sides === 8) return octSqVertices(row, col);   // row,col 是扩展网格坐标 gr,gc
+    if (sides === 34) return snubSqVertices(row, col); // row,col 是扩展网格坐标 gr,gc
     if (sides === 36) return triHexVertices(row, col); // row,col 是扩展网格坐标 gr,gc
 }
 
@@ -802,6 +1060,7 @@ function getCellCenter(sides, row, col) {
 function getAllCells(sides) {
     if (sides === 5) return cairoAllCells();
     if (sides === 8) return octSqAllCells();
+    if (sides === 34) return snubSqAllCells();
     if (sides === 36) return triHexAllCells();
     const cells = [];
     const actualRows = getActualRows(sides);
@@ -819,10 +1078,11 @@ function getNeighbors(sides, row, col) {
     else if (sides === 5) nb = cairoNeighbors(row, col);   // 边界检查在内部
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);   // 边界检查在内部
+    else if (sides === 34) nb = snubSqNeighbors(row, col); // 边界检查在内部
     else if (sides === 36) nb = triHexNeighbors(row, col); // 边界检查在内部
     else nb = [];
     // sides===5/8/36 的边界检查已在各自函数内完成
-    if (sides !== 5 && sides !== 8 && sides !== 36) {
+    if (sides !== 5 && sides !== 8 && sides !== 34 && sides !== 36) {
         const actualCols = getActualCols(sides);
         nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);
     }
@@ -835,6 +1095,7 @@ function getBoardSize(sides) {
     if (sides === 5) return cairoBoardSize();
     if (sides === 6) return hexBoardSize();
     if (sides === 8) return octSqBoardSize();
+    if (sides === 34) return snubSqBoardSize();
     if (sides === 36) return triHexBoardSize();
     return { width: 400, height: 400 };
 }
