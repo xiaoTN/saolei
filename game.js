@@ -57,7 +57,7 @@ let cellSize = 44;
 const DEFAULT_CELL_SIZE = 40; // 所有模式统一的默认格子大小
 const MIN_SCALE = 1;          // 最小缩放比例
 const MAX_SCALE = 2;          // 最大缩放比例
-const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 36]);
+const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 34, 36]);
 
 let currentDifficulty = 'medium';
 let gameStarted = false; // 游戏是否已开始（用于界面切换）
@@ -108,6 +108,13 @@ const DIFFICULTY_PRESETS = {
         medium: [9,  10, 32],   // 199格，密度 16.1%
         hard:   [12, 13, 71],   // 337格，密度 21.1%
         hell:   [100, 100, 5050],// 20200格，密度 25.0%
+    },
+    34: {
+        // 扭棱正方形：实际格子数 ≈ 6*rows*cols（每基本域 2 正方形 + 4 三角形）
+        easy:   [4,  4,  12],    // ≈96格，密度 ≈12.5%
+        medium: [5,  5,  24],    // ≈150格，密度 ≈16%
+        hard:   [7,  7,  62],    // ≈294格，密度 ≈21%
+        hell:   [15, 15, 338],   // ≈1350格，密度 ≈25%
     },
 };
 
@@ -250,6 +257,9 @@ function _updatePreviewInfo() {
     let totalCells;
     if (sides === 8) {
         totalCells = rows * cols + (rows - 1) * (cols - 1);
+    } else if (sides === 34) {
+        // 扭棱正方形：使用缓存计算精确格子数
+        totalCells = rows * cols * 6; // 每基本域 2 正方形 + 4 三角形
     } else if (sides === 36) {
         // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
         totalCells = rows * cols + rows * cols + rows + cols;

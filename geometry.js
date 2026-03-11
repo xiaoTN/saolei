@@ -563,6 +563,286 @@ function triHexBoardSize() {
     return _ensureTriHexCache().boardSize;
 }
 
+// ─── 扭棱正方形镶嵌（Snub square tiling, sides=34）──────────────
+// 顶点构型 3.3.4.3.4：每个顶点周围依次是三角形、三角形、正方形、三角形、正方形
+// 参考：https://en.wikipedia.org/wiki/Snub_square_tiling
+//
+// 几何结构：
+//   - 正方形和等边三角形混合，所有边长相等（= a = cellSize/2）
+//   - 每个顶点处按逆时针排列 5 个面，内角序列 60°,60°,90°,60°,90°
+//   - 这是手性平铺（chiral），使用左旋版本
+//
+// 实现方式：
+//   1. 顶点 BFS：从种子顶点出发，按 3.3.4.3.4 构型递归生成所有顶点
+//   2. 面构建：从每个顶点的面序列信息直接构建三角形和正方形
+//   3. 邻居推导：通过顶点共享推导邻居关系
+//   全部通过缓存方式实现（类似 triHex）
+
+let _snubSqCache = null;
+
+function _snubSqCacheSignature() {
+    return `${rows}|${cols}|${cellSize}`;
+}
+
+function _snubSqRoundKey(x, y) {
+    return Math.round(x * 1000) + ',' + Math.round(y * 1000);
+}
+
+function _snubSqSortPolygon(points) {
+    const cx = points.reduce((s, p) => s + p[0], 0) / points.length;
+    const cy = points.reduce((s, p) => s + p[1], 0) / points.length;
+    return [...points].sort((a, b) =>
+        Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx)
+    );
+}
+
+function _ensureSnubSqCache() {
+    const signature = _snubSqCacheSignature();
+    if (_snubSqCache && _snubSqCache.signature === signature) return _snubSqCache;
+
+    const a = cellSize / 2; // 边长
+    const TOL = a * 1e-4;
+    const sqrt3 = Math.sqrt(3);
+
+    // ── 步骤1：参数化生成所有顶点 ──
+    // Snub square tiling 的精确坐标公式（来自 Polytope Wiki）：
+    //   s = √(2+√3) / 4
+    //   每个 (i,j) 单元格内有 4 个顶点偏移：
+    //     A = s*(3-√3, √3-1),  B = s*(1-√3, 3-√3),  C = -A,  D = -B
+    //   平移周期 period = 4s = √(2+√3)（轴对齐）
+    const s_unit = Math.sqrt(2 + sqrt3) / 4; // 单位边长下的 s
+    const period_unit = 4 * s_unit;           // 单位边长下的周期
+    // 缩放到实际边长 a
+    const s = s_unit * a;
+    const period = period_unit * a;
+
+    const vertexOffsets = [
+        [s * (3 - sqrt3), s * (sqrt3 - 1)],    // A
+        [s * (1 - sqrt3), s * (3 - sqrt3)],     // B
+        [s * (sqrt3 - 3), s * (1 - sqrt3)],     // C = -A
+        [s * (sqrt3 - 1), s * (sqrt3 - 3)],     // D = -B
+    ];
+
+    // 棋盘范围：每个基本域 period² 面积含 2 个正方形 + 4 个三角形（共 6 面）
+    // 总面数 ≈ 3*rows*cols → 需要 rows*cols/2 个基本域
+    // 使用 rows/cols 分别控制两个方向的基本域数量
+    const pad = a * 2;
+    const gridN_x = cols;
+    const gridN_y = rows;
+
+    // 生成所有顶点（包含边界外的扩展区域以确保边界面完整）
+    const vertexMap = new Map();
+    const roundKey = _snubSqRoundKey;
+
+    for (let i = -2; i <= gridN_x + 1; i++) {
+        for (let j = -2; j <= gridN_y + 1; j++) {
+            for (const [ox, oy] of vertexOffsets) {
+                const x = pad + ox + i * period;
+                const y = pad + oy + j * period;
+                const key = roundKey(x, y);
+                if (!vertexMap.has(key)) {
+                    vertexMap.set(key, { x, y, key });
+                }
+            }
+        }
+    }
+
+    // ── 步骤2：通过边图找三角形和正方形 ──
+    // 使用空间哈希高效查找边（距离为 a 的顶点对）
+    const CELL_SIZE = a * 1.5;
+    const spatialHash = new Map();
+    const vertices = [...vertexMap.values()];
+
+    function hashKey(x, y) {
+        return Math.floor(x / CELL_SIZE) + ',' + Math.floor(y / CELL_SIZE);
+    }
+
+    for (const v of vertices) {
+        const hk = hashKey(v.x, v.y);
+        if (!spatialHash.has(hk)) spatialHash.set(hk, []);
+        spatialHash.get(hk).push(v);
+    }
+
+    const edgeMap = new Map();
+    for (const v of vertices) {
+        if (!edgeMap.has(v.key)) edgeMap.set(v.key, new Set());
+        const hx = Math.floor(v.x / CELL_SIZE);
+        const hy = Math.floor(v.y / CELL_SIZE);
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const cell = spatialHash.get((hx + dx) + ',' + (hy + dy));
+                if (!cell) continue;
+                for (const u of cell) {
+                    if (u.key === v.key) continue;
+                    const d = Math.hypot(u.x - v.x, u.y - v.y);
+                    if (Math.abs(d - a) < TOL) {
+                        if (!edgeMap.has(u.key)) edgeMap.set(u.key, new Set());
+                        edgeMap.get(v.key).add(u.key);
+                        edgeMap.get(u.key).add(v.key);
+                    }
+                }
+            }
+        }
+    }
+
+    // 面中心必须在棋盘范围内
+    const boundX = pad + gridN_x * period;
+    const boundY = pad + gridN_y * period;
+    function faceCenterInBounds(pts) {
+        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        return cx > 0 && cy > 0 && cx < boundX && cy < boundY;
+    }
+
+    const rawCells = [];
+    const faceKeySet = new Set();
+    const expectedTriArea = sqrt3 / 4 * a * a;
+
+    // 找三角形（3个顶点两两相连，面积验证为等边三角形）
+    for (const [v1k, v1Nb] of edgeMap) {
+        for (const v2k of v1Nb) {
+            if (v2k <= v1k) continue;
+            const v2Nb = edgeMap.get(v2k);
+            if (!v2Nb) continue;
+            for (const v3k of v2Nb) {
+                if (v3k <= v2k) continue;
+                if (v1Nb.has(v3k)) {
+                    const fk = [v1k, v2k, v3k].sort().join('|');
+                    if (faceKeySet.has(fk)) continue;
+                    const p1 = vertexMap.get(v1k), p2 = vertexMap.get(v2k), p3 = vertexMap.get(v3k);
+                    const pts = [[p1.x, p1.y], [p2.x, p2.y], [p3.x, p3.y]];
+                    // 验证面积（等边三角形）
+                    const area = Math.abs((p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y)) / 2;
+                    if (Math.abs(area - expectedTriArea) < TOL * a && faceCenterInBounds(pts)) {
+                        faceKeySet.add(fk);
+                        rawCells.push({
+                            type: 'tri',
+                            vertices: _snubSqSortPolygon(pts),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 找正方形（4个顶点形成环，边长 a，对角线 a√2）
+    for (const [v1k, v1Nb] of edgeMap) {
+        for (const v2k of v1Nb) {
+            if (v2k <= v1k) continue;
+            const v2Nb = edgeMap.get(v2k);
+            for (const v3k of v2Nb) {
+                if (v3k === v1k) continue;
+                const v3Nb = edgeMap.get(v3k);
+                if (!v3Nb) continue;
+                for (const v4k of v3Nb) {
+                    if (v4k === v2k || v4k === v1k) continue;
+                    if (v1Nb.has(v4k)) {
+                        const p1 = vertexMap.get(v1k), p2 = vertexMap.get(v2k);
+                        const p3 = vertexMap.get(v3k), p4 = vertexMap.get(v4k);
+                        const d13 = Math.hypot(p3.x - p1.x, p3.y - p1.y);
+                        const d24 = Math.hypot(p4.x - p2.x, p4.y - p2.y);
+                        if (Math.abs(d13 - a * Math.SQRT2) < TOL && Math.abs(d24 - a * Math.SQRT2) < TOL) {
+                            const fk = [v1k, v2k, v3k, v4k].sort().join('|');
+                            if (faceKeySet.has(fk)) continue;
+                            const pts = [[p1.x, p1.y], [p2.x, p2.y], [p3.x, p3.y], [p4.x, p4.y]];
+                            if (faceCenterInBounds(pts)) {
+                                faceKeySet.add(fk);
+                                rawCells.push({
+                                    type: 'sq',
+                                    vertices: _snubSqSortPolygon(pts),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 分配连续编号
+    for (let i = 0; i < rawCells.length; i++) {
+        rawCells[i].coord = [i, 0];
+        rawCells[i].key = `${i},0`;
+    }
+
+    // ── 步骤3：构建邻居关系（共享至少一个顶点） ──
+    const cellMap = new Map();
+    const vertexOwners = new Map();
+
+    for (const rawCell of rawCells) {
+        const cell = {
+            key: rawCell.key,
+            coord: rawCell.coord,
+            type: rawCell.type,
+            vertices: rawCell.vertices,
+            neighborKeys: new Set(),
+        };
+        cellMap.set(cell.key, cell);
+
+        for (const [vx, vy] of rawCell.vertices) {
+            const vertexKey = roundKey(vx, vy);
+            if (!vertexOwners.has(vertexKey)) vertexOwners.set(vertexKey, []);
+            vertexOwners.get(vertexKey).push(cell.key);
+        }
+    }
+
+    for (const owners of vertexOwners.values()) {
+        const uniqueOwners = [...new Set(owners)];
+        for (let i = 0; i < uniqueOwners.length; i++) {
+            for (let j = 0; j < uniqueOwners.length; j++) {
+                if (i === j) continue;
+                cellMap.get(uniqueOwners[i]).neighborKeys.add(uniqueOwners[j]);
+            }
+        }
+    }
+
+    // ── 步骤4：计算边界 ──
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cell of rawCells) {
+        for (const [x, y] of cell.vertices) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+    }
+
+    _snubSqCache = {
+        signature,
+        allCells: rawCells.map(cell => cell.coord),
+        cellMap,
+        boardSize: {
+            width: Math.ceil(maxX + pad) + 4,
+            height: Math.ceil(maxY + pad) + 4,
+        },
+    };
+    return _snubSqCache;
+}
+
+function snubSqCellType(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.type : null;
+}
+
+function snubSqVertices(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    return cell ? cell.vertices : [];
+}
+
+function snubSqAllCells() {
+    return _ensureSnubSqCache().allCells;
+}
+
+function snubSqNeighbors(gr, gc) {
+    const cell = _ensureSnubSqCache().cellMap.get(`${gr},${gc}`);
+    if (!cell) return [];
+    return [...cell.neighborKeys].map(key => key.split(',').map(Number));
+}
+
+function snubSqBoardSize() {
+    return _ensureSnubSqCache().boardSize;
+}
+
 // ─── Cairo 五边形镶嵌（5边）────────────────────────────────────
 // 等边 Cairo pentagonal tiling（Equilateral Cairo tiling）
 // 参考：https://en.wikipedia.org/wiki/Cairo_pentagonal_tiling
@@ -750,6 +1030,7 @@ function getCellVertices(sides, row, col) {
     if (sides === 5) return cairoVertices(row, col);   // row,col 是扩展网格坐标 gr,gc
     if (sides === 6) return hexVertices(row, col);
     if (sides === 8) return octSqVertices(row, col);   // row,col 是扩展网格坐标 gr,gc
+    if (sides === 34) return snubSqVertices(row, col); // row,col 是扩展网格坐标 gr,gc
     if (sides === 36) return triHexVertices(row, col); // row,col 是扩展网格坐标 gr,gc
 }
 
@@ -764,6 +1045,7 @@ function getCellCenter(sides, row, col) {
 function getAllCells(sides) {
     if (sides === 5) return cairoAllCells();
     if (sides === 8) return octSqAllCells();
+    if (sides === 34) return snubSqAllCells();
     if (sides === 36) return triHexAllCells();
     const cells = [];
     const actualRows = getActualRows(sides);
@@ -781,10 +1063,11 @@ function getNeighbors(sides, row, col) {
     else if (sides === 5) nb = cairoNeighbors(row, col);   // 边界检查在内部
     else if (sides === 6) nb = hexNeighbors(row, col);
     else if (sides === 8) nb = octSqNeighbors(row, col);   // 边界检查在内部
+    else if (sides === 34) nb = snubSqNeighbors(row, col); // 边界检查在内部
     else if (sides === 36) nb = triHexNeighbors(row, col); // 边界检查在内部
     else nb = [];
     // sides===5/8/36 的边界检查已在各自函数内完成
-    if (sides !== 5 && sides !== 8 && sides !== 36) {
+    if (sides !== 5 && sides !== 8 && sides !== 34 && sides !== 36) {
         const actualCols = getActualCols(sides);
         nb = nb.filter(([r, c]) => r >= 0 && r < rows && c >= 0 && c < actualCols);
     }
@@ -797,6 +1080,7 @@ function getBoardSize(sides) {
     if (sides === 5) return cairoBoardSize();
     if (sides === 6) return hexBoardSize();
     if (sides === 8) return octSqBoardSize();
+    if (sides === 34) return snubSqBoardSize();
     if (sides === 36) return triHexBoardSize();
     return { width: 400, height: 400 };
 }
