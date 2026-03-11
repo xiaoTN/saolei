@@ -93,12 +93,15 @@ game.js        # 游戏状态、规则、计时器、设置、平移与交互
 
 已实现的关键优化（修改时不要回退）：
 
-- `renderer.js`
-  - `cellDomMap` 缓存格子 DOM 引用（避免频繁 `querySelector`）
-  - SVG 事件委托（替代每格多个监听器）
-  - `DocumentFragment` 批量挂载
-  - 大棋盘分帧渲染（`requestAnimationFrame` chunk render）
-  - 分帧期间临时 `pointer-events: none`，完成后恢复
+- `renderer.js`（已从 SVG 改为 Canvas，这是最核心的性能优化）
+  - **Canvas 替代 SVG**：大棋盘下 SVG DOM 节点过多导致卡顿，全量改用 `<canvas>` 绘制，消除 DOM 瓶颈
+  - `cellDomMap` 缓存格子元数据（`{ key, row, col, fontSize }`），避免重复计算
+  - **按需单格重绘**：`setCellState()` 只调 `_drawCell()` 重绘单个格子，hover 只重绘旧格+新格，不做全量 `_renderBoard()`
+  - 点击检测：正方形（sides=4）直接数学计算行列（O(1)快速路径），其余形状用边界框快速排除再做精确射线法
+- `geometry.js`
+  - **空间哈希加速建图**（sides=34）：步骤2用 `spatialHash` 将查找相距为 a 的顶点对从 O(N²) 降为 O(N)
+  - **缓存机制**（sides=34/36/5/8）：几何计算结果按 `rows|cols|cellSize` 签名缓存（`_snubSqCache` / `_triHexCache`），棋盘参数不变时直接复用，不重新计算
+  - sides=34 顶点坐标在缓存初始化时统一平移对齐（保证左上角留 pad 空白），平移是一次性 O(N)，后续读取无额外开销
 - `game.js`
   - `revealedCount` + `totalCellsCount` 实现 `checkWin()` O(1)
   - `allCellsCache` / `neighborsCache` 热路径缓存
