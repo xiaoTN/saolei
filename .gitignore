@@ -1,6 +1,12 @@
 node_modules/.bin
 .playwright-mcp
 
+# 环境变量（包含敏感信息）
+.env
+
+# 服务端临时文件
+server/
+
 # Capacitor
 mobile/node_modules/
 mobile/android/
