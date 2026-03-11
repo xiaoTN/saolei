@@ -796,7 +796,7 @@ function _ensureSnubSqCache() {
         }
     }
 
-    // ── 步骤4：计算边界 ──
+    // ── 步骤4：平移坐标，确保左上角留出 pad 空白 ──
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const cell of rawCells) {
         for (const [x, y] of cell.vertices) {
@@ -806,6 +806,21 @@ function _ensureSnubSqCache() {
             if (y > maxY) maxY = y;
         }
     }
+
+    // 将整体平移，使顶点最小坐标恰好为 pad
+    const shiftX = pad - minX;
+    const shiftY = pad - minY;
+    for (const cell of rawCells) {
+        cell.vertices = cell.vertices.map(([x, y]) => [x + shiftX, y + shiftY]);
+    }
+    // 同步更新 cellMap 中的顶点（rawCells.vertices 已被 map 创建了新数组）
+    for (const rawCell of rawCells) {
+        const mapCell = cellMap.get(rawCell.key);
+        if (mapCell) mapCell.vertices = rawCell.vertices;
+    }
+    // 重新计算 max（平移后）
+    maxX += shiftX;
+    maxY += shiftY;
 
     _snubSqCache = {
         signature,
