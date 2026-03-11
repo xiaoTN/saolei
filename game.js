@@ -484,17 +484,25 @@ function initGame() {
             const { type, key, keys } = msg;
             if (type === 'reveal') {
                 const [r, c] = key.split(',').map(Number);
-                revealCell(r, c, true);
+                if (board[key] === -1) {
+                    // 对方踩雷，显示失败界面
+                    mineLocations.forEach(([mr, mc]) => {
+                        if (!flagged[`${mr},${mc}`]) setCellState(mr, mc, 'mine');
+                    });
+                    gameOver = true;
+                    clearInterval(timerInterval);
+                    showGameResult(false);
+                } else {
+                    revealCell(r, c, true);
+                }
             }
             if (type === 'flag') { handleClick(...key.split(',').map(Number), { fromRemote: true }); }
             if (type === 'chord') { revealCells(keys, true); }
             if (type === 'board-init') { initBoardFromRemote(msg.mineLocations); }
         };
         MP.onPartnerLeft = () => {
-            if (!gameOver) {
-                const el = document.getElementById('mpStatus');
-                if (el) el.textContent = '⚠️ 对方已断线';
-            }
+            const el = document.getElementById('mpStatus');
+            if (el) el.textContent = '⚠️ 对方已断线';
         };
         MP.onPartnerRejoined = () => {
             const el = document.getElementById('mpStatus');
