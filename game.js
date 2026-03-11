@@ -54,6 +54,9 @@ let rows     = 10;
 let cols     = 10;
 let sides    = 4;
 let cellSize = 44;
+const DEFAULT_CELL_SIZE = 40; // 所有模式统一的默认格子大小
+const MIN_SCALE = 1;          // 最小缩放比例
+const MAX_SCALE = 2;          // 最大缩放比例
 const SUPPORTED_SIDES = new Set([3, 4, 5, 6, 8, 36]);
 
 let currentDifficulty = 'medium';
@@ -183,8 +186,7 @@ function selectSides(s) {
     document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
-    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
-    cellSize = sizeMap[sides] || 44;
+    cellSize = DEFAULT_CELL_SIZE;
     if (!gameStarted) {
         // 切换边数时同步应用当前难度预设（自定义模式只预览尺寸）
         if (currentDifficulty !== 'custom') _applyDifficultyPreset(currentDifficulty);
@@ -272,8 +274,7 @@ function initGame() {
     const selectedBtn = document.querySelector('.side-btn.selected');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
-    const sizeMap = { 3: 48, 4: 40, 5: 44, 6: 44, 8: 44, 36: 48 };
-    cellSize = sizeMap[sides] || 44;
+    cellSize = DEFAULT_CELL_SIZE;
 
     // 非自定义模式：直接从预设读取，不依赖滑动条当前值
     if (currentDifficulty !== 'custom') {
@@ -641,7 +642,7 @@ function _setSettingsLocked(locked) {
     });
 }
 
-// ─── 棋盘平移 ──────────────────────────────────────────────────
+// ─── 棋盘平移与缩放 ──────────────────────────────────────────────────
 
 // 拖动超过此阈值才进入平移模式，否则视为点击
 let _isPanning = false;
@@ -653,17 +654,26 @@ let _isPanning = false;
     let startX = 0, startY = 0;
     let panX = 0, panY = 0;
     let lastPanX = 0, lastPanY = 0;
+    let scale = 1; // 缩放比例
     let wheelDX = 0, wheelDY = 0;
     let wheelRAF = 0;
     let touchPanRAF = 0;
     let wheelPanCleanupTimer = 0;
+
+    // 双指缩放相关
+    let pinchStartDist = 0;
+    let pinchStartScale = 1;
+    let pinchStartCenter = { x: 0, y: 0 };
+    let pinchStartPan = { x: 0, y: 0 };
+    let isPinching = false;
 
     function getViewport() { return document.getElementById('boardViewport'); }
     function getBoard()    { return document.getElementById('board'); }
 
     function clampPan(vp, board, nx, ny) {
         const vpW = vp.clientWidth,  vpH = vp.clientHeight;
-        const bW  = board.offsetWidth, bH = board.offsetHeight;
+        // 缩放后的棋盘尺寸
+        const bW  = board.offsetWidth * scale, bH = board.offsetHeight * scale;
         const minX = bW > vpW ? -(bW - vpW) / 2 : 0;
         const minY = bH > vpH ? -(bH - vpH) / 2 : 0;
         const maxX = bW > vpW ? (bW - vpW) / 2 : 0;
@@ -677,15 +687,15 @@ let _isPanning = false;
     function applyTransform() {
         const board = getBoard();
         if (board) {
-            // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移
-            board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px)`;
+            // CSS 设置了 left:50% top:50%，所以 transform 只需要额外的平移和缩放
+            board.style.transform = `translate(-50%, -50%) translate(${panX}px, ${panY}px) scale(${scale})`;
         }
     }
 
     function _scheduleWheelPanClassClear() {
         clearTimeout(wheelPanCleanupTimer);
         wheelPanCleanupTimer = setTimeout(() => {
-            if (!dragging) getViewport()?.classList.remove('panning');
+            if (!dragging && !isPinching) getViewport()?.classList.remove('panning');
         }, 120);
     }
 
@@ -701,13 +711,77 @@ let _isPanning = false;
         _scheduleWheelPanClassClear();
     }
 
-    function onWheel(e) {
-        if (e.ctrlKey) return; // 保留浏览器缩放手势
+    // 计算两点距离
+    function getTouchDistance(t1, t2) {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.hypot(dx, dy);
+    }
+
+    // 计算两点中点
+    function getTouchCenter(t1, t2) {
+        return {
+            x: (t1.clientX + t2.clientX) / 2,
+            y: (t1.clientY + t2.clientY) / 2
+        };
+    }
+
+    // 缩放到指定点（以视口坐标为中心）
+    function zoomAtPoint(newScale, centerX, centerY) {
         const vp = getViewport(), board = getBoard();
         if (!vp || !board) return;
 
-        const canPanX = board.offsetWidth > vp.clientWidth;
-        const canPanY = board.offsetHeight > vp.clientHeight;
+        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        if (clampedScale === scale) return;
+
+        // 视口中心相对于棋盘的位置
+        const vpRect = vp.getBoundingClientRect();
+        const boardRect = board.getBoundingClientRect();
+
+        // 计算缩放中心相对于棋盘当前显示位置的比例
+        const boardCenterX = boardRect.left + boardRect.width / 2;
+        const boardCenterY = boardRect.top + boardRect.height / 2;
+
+        // 缩放前后棋盘中心偏移
+        const scaleRatio = clampedScale / scale;
+
+        // 调整 pan 以保持缩放中心不变
+        const dx = centerX - boardCenterX;
+        const dy = centerY - boardCenterY;
+
+        panX = panX + dx * (1 - scaleRatio);
+        panY = panY + dy * (1 - scaleRatio);
+
+        scale = clampedScale;
+
+        // 重新约束平移范围
+        [panX, panY] = clampPan(vp, board, panX, panY);
+        applyTransform();
+    }
+
+    function onWheel(e) {
+        const vp = getViewport(), board = getBoard();
+        if (!vp || !board) return;
+
+        // Ctrl+滚轮：缩放
+        if (e.ctrlKey) {
+            e.preventDefault();
+            _isPanning = true;
+
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = scale * delta;
+
+            zoomAtPoint(newScale, e.clientX, e.clientY);
+
+            vp.classList.add('panning');
+            _scheduleWheelPanClassClear();
+            setTimeout(() => { _isPanning = false; }, 30);
+            return;
+        }
+
+        // 普通滚轮：平移
+        const canPanX = board.offsetWidth * scale > vp.clientWidth;
+        const canPanY = board.offsetHeight * scale > vp.clientHeight;
         if (!canPanX && !canPanY) return;
 
         const dx = canPanX ? e.deltaX : 0;
@@ -755,54 +829,124 @@ let _isPanning = false;
 
     // ── 触摸（移动端）──
     function onTouchStart(e) {
-        if (e.touches.length !== 1) return;
-        dragging = true;
-        _isPanning = false;
-        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-        lastPanX = panX; lastPanY = panY;
-    }
+        if (e.touches.length === 1) {
+            // 单指：准备平移
+            dragging = true;
+            isPinching = false;
+            _isPanning = false;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            lastPanX = panX;
+            lastPanY = panY;
+        } else if (e.touches.length === 2) {
+            // 双指：准备缩放+平移
+            isPinching = true;
+            dragging = false;
+            _isPanning = true;
 
-    function onTouchMove(e) {
-        if (!dragging || e.touches.length !== 1) return;
-        const dx = e.touches[0].clientX - startX;
-        const dy = e.touches[0].clientY - startY;
-        if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-
-        if (!_isPanning) {
-            // 刚越过阈值：取消所有长按计时器，防止误触发开格子
+            // 取消所有长按计时器
             Object.keys(touchHoldTimers).forEach(k => {
                 clearTimeout(touchHoldTimers[k]);
                 delete touchHoldTimers[k];
                 delete touchLongPressFired[k];
             });
-        }
-        _isPanning = true;
-        e.preventDefault(); // 阻止页面滚动
-        getViewport()?.classList.add('panning');
-        const vp = getViewport(), board = getBoard();
-        if (!vp || !board) return;
-        [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
-        // 使用 RAF 节流，避免频繁重绘
-        if (!touchPanRAF) {
-            touchPanRAF = requestAnimationFrame(() => {
-                touchPanRAF = 0;
-                applyTransform();
-            });
+
+            pinchStartDist = getTouchDistance(e.touches[0], e.touches[1]);
+            pinchStartScale = scale;
+            pinchStartCenter = getTouchCenter(e.touches[0], e.touches[1]);
+            pinchStartPan = { x: panX, y: panY };
+
+            // 记录初始触摸位置用于计算平移
+            startX = pinchStartCenter.x;
+            startY = pinchStartCenter.y;
+            lastPanX = panX;
+            lastPanY = panY;
+
+            getViewport()?.classList.add('panning');
         }
     }
 
-    function onTouchEnd() {
-        if (!dragging) return;
-        dragging = false;
-        // 确保最后一次 transform 被应用
-        if (touchPanRAF) {
-            cancelAnimationFrame(touchPanRAF);
-            touchPanRAF = 0;
-            applyTransform();
+    function onTouchMove(e) {
+        if (e.touches.length === 1 && dragging && !isPinching) {
+            // 单指平移
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (!_isPanning && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+            if (!_isPanning) {
+                // 刚越过阈值：取消所有长按计时器，防止误触发开格子
+                Object.keys(touchHoldTimers).forEach(k => {
+                    clearTimeout(touchHoldTimers[k]);
+                    delete touchHoldTimers[k];
+                    delete touchLongPressFired[k];
+                });
+            }
+            _isPanning = true;
+            e.preventDefault();
+            getViewport()?.classList.add('panning');
+            const vp = getViewport(), board = getBoard();
+            if (!vp || !board) return;
+            [panX, panY] = clampPan(vp, board, lastPanX + dx, lastPanY + dy);
+            if (!touchPanRAF) {
+                touchPanRAF = requestAnimationFrame(() => {
+                    touchPanRAF = 0;
+                    applyTransform();
+                });
+            }
+        } else if (e.touches.length === 2 && isPinching) {
+            // 双指缩放+平移
+            e.preventDefault();
+
+            const currentDist = getTouchDistance(e.touches[0], e.touches[1]);
+            const currentCenter = getTouchCenter(e.touches[0], e.touches[1]);
+
+            // 计算新缩放比例
+            const newScale = pinchStartScale * (currentDist / pinchStartDist);
+            scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+
+            // 计算平移：双指中点的移动
+            const dx = currentCenter.x - pinchStartCenter.x;
+            const dy = currentCenter.y - pinchStartCenter.y;
+
+            const vp = getViewport(), board = getBoard();
+            if (vp && board) {
+                [panX, panY] = clampPan(vp, board, pinchStartPan.x + dx, pinchStartPan.y + dy);
+            }
+
+            if (!touchPanRAF) {
+                touchPanRAF = requestAnimationFrame(() => {
+                    touchPanRAF = 0;
+                    applyTransform();
+                });
+            }
         }
-        getViewport()?.classList.remove('panning');
-        if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
-        else _isPanning = false;
+    }
+
+    function onTouchEnd(e) {
+        if (e.touches.length === 0) {
+            // 所有手指离开
+            if (dragging || isPinching) {
+                dragging = false;
+                isPinching = false;
+                // 确保最后一次 transform 被应用
+                if (touchPanRAF) {
+                    cancelAnimationFrame(touchPanRAF);
+                    touchPanRAF = 0;
+                    applyTransform();
+                }
+                getViewport()?.classList.remove('panning');
+                if (_isPanning) setTimeout(() => { _isPanning = false; }, 30);
+                else _isPanning = false;
+            }
+        } else if (e.touches.length === 1 && isPinching) {
+            // 从双指变为单指：切换到单指平移模式
+            isPinching = false;
+            dragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            lastPanX = panX;
+            lastPanY = panY;
+        }
     }
 
     // 脚本在 body 末尾，DOM 已就绪
@@ -826,11 +970,13 @@ let _isPanning = false;
         // 棋盘居中
         panX = 0;
         panY = 0;
+        scale = 1;
         applyTransform();
     }
 
-    window._panReset = () => { panX = 0; panY = 0; applyTransform(); };
+    window._panReset = () => { panX = 0; panY = 0; scale = 1; applyTransform(); };
     window._panCenter = centerPan;
+    window._getScale = () => scale;
 })();
 
 // ─── 入口 ─────────────────────────────────────────────────────

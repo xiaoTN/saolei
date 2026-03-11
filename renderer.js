@@ -184,10 +184,18 @@ function _getCenterFromVerts(verts) {
 
 // 绑定 Canvas 事件
 function _attachCanvasEvents(canvas) {
-    canvas.addEventListener('mousemove', e => {
+    // 将视口坐标转换为 Canvas 内部坐标（考虑缩放）
+    function getCanvasCoords(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const scale = (typeof window._getScale === 'function') ? window._getScale() : 1;
+        // 视觉坐标 -> Canvas 内部坐标
+        const x = (clientX - rect.left) / scale;
+        const y = (clientY - rect.top) / scale;
+        return { x, y };
+    }
+
+    canvas.addEventListener('mousemove', e => {
+        const { x, y } = getCanvasCoords(e.clientX, e.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) {
             if (hoveredCell) {
@@ -219,9 +227,7 @@ function _attachCanvasEvents(canvas) {
     });
 
     canvas.addEventListener('click', e => {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const { x, y } = getCanvasCoords(e.clientX, e.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) return;
         handleClick(cell.row, cell.col);
@@ -229,9 +235,7 @@ function _attachCanvasEvents(canvas) {
 
     canvas.addEventListener('contextmenu', e => {
         e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const { x, y } = getCanvasCoords(e.clientX, e.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) return;
         handleRightClick(e, cell.row, cell.col);
@@ -240,9 +244,7 @@ function _attachCanvasEvents(canvas) {
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
         const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        const { x, y } = getCanvasCoords(touch.clientX, touch.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) return;
         handleTouchStart(e, cell.row, cell.col);
@@ -251,9 +253,7 @@ function _attachCanvasEvents(canvas) {
     canvas.addEventListener('touchend', e => {
         e.preventDefault();
         const touch = e.changedTouches[0];
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        const { x, y } = getCanvasCoords(touch.clientX, touch.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) return;
         handleTouchEnd(e, cell.row, cell.col);
@@ -261,9 +261,7 @@ function _attachCanvasEvents(canvas) {
 
     canvas.addEventListener('touchcancel', e => {
         const touch = e.changedTouches[0];
-        const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        const { x, y } = getCanvasCoords(touch.clientX, touch.clientY);
         const cell = _getCellFromPoint(x, y);
         if (!cell) return;
         handleTouchCancel(cell.row, cell.col);
@@ -271,6 +269,7 @@ function _attachCanvasEvents(canvas) {
 }
 
 // 根据坐标获取格子（点检测）
+// x, y 是 Canvas 内部坐标（已经过缩放转换）
 function _getCellFromPoint(x, y) {
     // 对于正方形格子，直接计算行列（快速路径）
     if (sides === 4) {
