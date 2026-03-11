@@ -1,0 +1,12 @@
+{
+  "name": "saolei-multiplayer",
+  "version": "1.0.0",
+  "description": "多边形扫雷联机服务器",
+  "main": "server.js",
+  "scripts": {
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}
