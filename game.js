@@ -49,6 +49,12 @@ let timerInterval = null;
 let touchHoldTimers = {};
 let touchLongPressFired = {};
 
+// ─── 联机状态 ──────────────────────────────────────────
+let mpRole = null;         // 'host' | 'guest' | null
+let mpGuestLocked = false; // guest 等待 board-init 时锁定交互
+let mpMyRevealCount = 0;   // 本端翻格计数（近似）
+let mpPartnerRevealCount = 0; // 对端翻格计数（近似）
+
 // 由 HTML 控件读取/设置
 let rows     = 10;
 let cols     = 10;
@@ -172,7 +178,11 @@ function startGame() {
 function backToMenu() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     hideGameResult();
-    showStartScreen();
+    mpRole = null;
+    mpGuestLocked = false;
+    mpMyRevealCount = 0;
+    mpPartnerRevealCount = 0;
+    showScreen('modeScreen');
 }
 
 function restartGame() {
@@ -341,6 +351,47 @@ function initGame() {
     _setSettingsLocked(false);
 
     _buildBoard();
+
+    // 联机模式初始化
+    mpMyRevealCount = 0;
+    mpPartnerRevealCount = 0;
+    _updateMpStats();
+
+    if (MP.isMultiplayer()) {
+        MP.onMessage = (msg) => {
+            const { type, key, keys } = msg;
+            if (type === 'reveal') {
+                const [r, c] = key.split(',').map(Number);
+                revealCell(r, c, true);
+            }
+            if (type === 'flag') { handleClick(...key.split(',').map(Number), { fromRemote: true }); }
+            if (type === 'chord') { revealCells(keys, true); }
+            if (type === 'board-init') { initBoardFromRemote(msg.mineLocations); }
+        };
+        MP.onPartnerLeft = () => {
+            if (!gameOver) {
+                const el = document.getElementById('mpStatus');
+                if (el) el.textContent = '⚠️ 对方已断线';
+            }
+        };
+        MP.onPartnerRejoined = () => {
+            const el = document.getElementById('mpStatus');
+            if (el) { el.textContent = '🟢 对方在线'; el.style.display = ''; }
+        };
+        MP.onRoomDestroyed = () => {
+            alert('房间已断开，返回主菜单');
+            backToMenu();
+        };
+        const statusEl = document.getElementById('mpStatus');
+        const statsEl = document.getElementById('mpStats');
+        if (statusEl) statusEl.style.display = '';
+        if (statsEl) statsEl.style.display = '';
+    } else {
+        const statusEl = document.getElementById('mpStatus');
+        const statsEl = document.getElementById('mpStats');
+        if (statusEl) statusEl.style.display = 'none';
+        if (statsEl) statsEl.style.display = 'none';
+    }
 }
 
 function _buildBoard() {
@@ -441,13 +492,16 @@ function startTimer() {
 }
 
 // 单击：标记 / 取消标记旗子（首次点击例外，直接打开格子；已揭示数字格触发快速开雷）
-function handleClick(row, col) {
+function handleClick(row, col, opts = {}) {
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    // Guest 等待棋盘初始化时锁定交互
+    if (mpGuestLocked) return;
 
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
+        if (mpRole === 'guest') { mpGuestLocked = true; return; }
         _revealCell_firstClick(row, col);
         return;
     }
@@ -458,6 +512,7 @@ function handleClick(row, col) {
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
             startTimer();
+            const chordRevealedKeys = [];
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
                 if (!revealed[nKey] && !flagged[nKey]) {
@@ -468,14 +523,21 @@ function handleClick(row, col) {
                         gameOver = true;
                         clearInterval(timerInterval);
                         vibrate([100, 50, 100]);
+                        if (MP.isMultiplayer() && !opts.fromRemote) {
+                            MP.send({ type: 'reveal', key: nKey });
+                        }
                         showGameResult(false);
                         return;
                     } else {
                         revealCell(r, c);
+                        chordRevealedKeys.push(nKey);
                     }
                 }
             }
             if (gameOver) return;
+            if (MP.isMultiplayer() && !opts.fromRemote && chordRevealedKeys.length > 0) {
+                MP.send({ type: 'chord', keys: chordRevealedKeys });
+            }
             vibrate(30);
             checkWin();
         }
@@ -497,18 +559,22 @@ function handleClick(row, col) {
         mineCount--;
     }
     vibrate(15);
+    if (MP.isMultiplayer() && !opts.fromRemote) MP.send({ type: 'flag', key });
     _updateGameStatus();
 }
 
 // 右键单击 / 长按：打开格子（reveal）
-function handleRightClick(e, row, col) {
+function handleRightClick(e, row, col, opts = {}) {
     e.preventDefault();
     if (_isPanning) return;
     const key = `${row},${col}`;
     if (gameOver) return;
+    // Guest 等待棋盘初始化时锁定交互
+    if (mpGuestLocked) return;
 
     // 首次点击：直接打开格子
     if (firstClick) {
+        if (mpRole === 'guest') return; // Guest 等待 host 触发
         _revealCell_firstClick(row, col);
         return;
     }
@@ -519,6 +585,7 @@ function handleRightClick(e, row, col) {
         const flaggedCount = neighbors.filter(([r, c]) => flagged[`${r},${c}`]).length;
         if (flaggedCount === board[key]) {
             startTimer();
+            const chordRevealedKeys = [];
             for (const [r, c] of neighbors) {
                 const nKey = `${r},${c}`;
                 if (!revealed[nKey] && !flagged[nKey]) {
@@ -528,14 +595,21 @@ function handleRightClick(e, row, col) {
                         });
                         gameOver = true;
                         clearInterval(timerInterval);
+                        if (MP.isMultiplayer() && !opts.fromRemote) {
+                            MP.send({ type: 'reveal', key: nKey });
+                        }
                         showGameResult(false);
                         return;
                     } else {
                         revealCell(r, c);
+                        chordRevealedKeys.push(nKey);
                     }
                 }
             }
             if (gameOver) return;
+            if (MP.isMultiplayer() && !opts.fromRemote && chordRevealedKeys.length > 0) {
+                MP.send({ type: 'chord', keys: chordRevealedKeys });
+            }
             vibrate(30);
             checkWin();
             return;
@@ -553,12 +627,14 @@ function handleRightClick(e, row, col) {
         gameOver = true;
         clearInterval(timerInterval);
         vibrate([100, 50, 100]);
+        if (MP.isMultiplayer() && !opts.fromRemote) MP.send({ type: 'reveal', key });
         showGameResult(false);
         return;
     }
 
     vibrate(30);
     revealCell(row, col);
+    if (MP.isMultiplayer() && !opts.fromRemote) MP.send({ type: 'reveal', key });
     checkWin();
 }
 
@@ -567,6 +643,13 @@ function _revealCell_firstClick(row, col) {
     firstClick = false;
     _setSettingsLocked(true);
     _placeMines(row, col);
+    // 联机模式：Host 将雷位发送给 Guest
+    if (mpRole === 'host' && MP.isMultiplayer()) {
+        MP.send({
+            type: 'board-init',
+            mineLocations: mineLocations.map(([r, c]) => `${r},${c}`)
+        });
+    }
     startTimer();
     vibrate(30);
     revealCell(row, col);
@@ -605,7 +688,7 @@ function handleTouchCancel(row, col) {
     delete touchLongPressFired[key];
 }
 
-function revealCell(row, col) {
+function revealCell(row, col, fromRemote = false) {
     const startKey = `${row},${col}`;
     if (!(startKey in board)) return; // 不是有效格子（sides===8 扩展网格中的空位）
     if (revealed[startKey] || flagged[startKey]) return;
@@ -639,12 +722,53 @@ function revealCell(row, col) {
     for (const [ur, uc, value] of updates) {
         setCellState(ur, uc, 'revealed', value);
     }
+
+    if (MP.isMultiplayer() && updates.length > 0) {
+        if (fromRemote) { mpPartnerRevealCount += updates.length; }
+        else            { mpMyRevealCount += updates.length; }
+        _updateMpStats();
+    }
 }
 
 function _getNeighborsCached(row, col) {
     return neighborsCache[`${row},${col}`] || [];
 }
 
+// 批量翻格（供远端 chord 消息使用）
+function revealCells(keys, fromRemote) {
+    for (const key of keys) {
+        const [r, c] = key.split(',').map(Number);
+        revealCell(r, c, fromRemote);
+    }
+}
+
+// Guest 收到 board-init 后用房主的雷位初始化棋盘
+function initBoardFromRemote(mineLocationKeys) {
+    mineLocations = mineLocationKeys.map(k => k.split(',').map(Number));
+    totalMines = mineLocations.length;
+    mineCount = totalMines;
+    for (const [r, c] of mineLocations) {
+        board[`${r},${c}`] = -1;
+    }
+    for (const [r, c] of mineLocations) {
+        for (const [nr, nc] of _getNeighborsCached(r, c)) {
+            const nKey = `${nr},${nc}`;
+            if (board[nKey] !== -1) board[nKey]++;
+        }
+    }
+    firstClick = false;
+    mpGuestLocked = false;
+    _setSettingsLocked(true);
+    _updateGameStatus();
+    startTimer();
+}
+
+function _updateMpStats() {
+    const myEl = document.getElementById('mpMyReveal');
+    const partnerEl = document.getElementById('mpPartnerReveal');
+    if (myEl) myEl.textContent = `你：已翻 ${mpMyRevealCount} 格`;
+    if (partnerEl) partnerEl.textContent = `对方：已翻 ${mpPartnerRevealCount} 格`;
+}
 function checkWin() {
     if (revealedCount === totalCellsCount - totalMines) {
         gameOver = true;
