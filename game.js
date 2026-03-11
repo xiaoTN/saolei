@@ -625,6 +625,11 @@ function handleClick(row, col, opts = {}) {
     if (firstClick) {
         if (mpRole === 'guest') { mpGuestLocked = true; return; }
         _revealCell_firstClick(row, col);
+        // 联机：board-init 已在 _revealCell_firstClick 里发送，同步首次翻格结果
+        if (MP.isMultiplayer()) {
+            const openedKeys = Object.keys(revealed).filter(k => revealed[k]);
+            if (openedKeys.length > 0) MP.send({ type: 'chord', keys: openedKeys });
+        }
         return;
     }
 
@@ -698,6 +703,11 @@ function handleRightClick(e, row, col, opts = {}) {
     if (firstClick) {
         if (mpRole === 'guest') return; // Guest 等待 host 触发
         _revealCell_firstClick(row, col);
+        // 联机：board-init 已在 _revealCell_firstClick 里发送，同步首次翻格结果
+        if (MP.isMultiplayer()) {
+            const openedKeys = Object.keys(revealed).filter(k => revealed[k]);
+            if (openedKeys.length > 0) MP.send({ type: 'chord', keys: openedKeys });
+        }
         return;
     }
 

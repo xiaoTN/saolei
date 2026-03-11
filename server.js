@@ -57,7 +57,7 @@ wss.on('connection', (ws) => {
 
         if (msg.type === 'create') {
             const code = generateCode();
-            rooms.set(code, { host: ws, guest: null, boardInit: null, reconnectTimer: null });
+            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, reconnectTimer: null });
             ws._roomCode = code;
             ws._role = 'host';
             send(ws, { type: 'room-created', code, role: 'host' });
@@ -75,8 +75,8 @@ wss.on('connection', (ws) => {
                 send(ws, { type: 'error', code: 'ROOM_NOT_FOUND' }); return;
             }
 
-            // 断线重连：原 host 重连
-            if (!room.host && ws._roomCode !== code) {
+            // 断线重连：host 槽位空（guest 留守，等待 host 重连）
+            if (!room.host && room.guest) {
                 if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
                 room.reconnectTimer = null;
                 room.host = ws;
@@ -89,48 +89,45 @@ wss.on('connection', (ws) => {
                 return;
             }
 
-            // 断线重连：原 guest 重连
-            if (!room.guest && ws._roomCode !== code) {
-                if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
-                room.reconnectTimer = null;
-                room.guest = ws;
-                ws._roomCode = code;
-                ws._role = 'guest';
-                send(ws, { type: 'room-joined', code, role: 'guest', config: room.config || {} });
-                if (room.boardInit) send(ws, room.boardInit);
-                send(room.host, { type: 'partner-rejoined' });
-                console.log(`[room] ${code} guest reconnected`);
-                return;
-            }
-
             // 房间已满
             if (room.host && room.guest) {
                 send(ws, { type: 'error', code: 'ROOM_FULL' }); return;
             }
 
-            // 正常加入
-            room.guest = ws;
-            room.config = msg.config || null;
-            ws._roomCode = code;
-            ws._role = 'guest';
-            const config = room.config || {};
-            send(ws, { type: 'room-joined', code, role: 'guest', config });
-            send(room.host, { type: 'partner-joined' });
-            console.log(`[room] ${code} guest joined`);
-            return;
-        }
+            // 正常加入 / guest 断线重连（host 在，guest 槽位空）
+            if (room.host && !room.guest) {
+                if (room.reconnectTimer) clearTimeout(room.reconnectTimer);
+                room.reconnectTimer = null;
+                room.guest = ws;
+                ws._roomCode = code;
+                ws._role = 'guest';
+                const config = room.config || {};
+                send(ws, { type: 'room-joined', code, role: 'guest', config });
+                if (room.boardInit) {
+                    // 有 boardInit 说明是断线重连，发 partner-rejoined
+                    send(ws, room.boardInit);
+                    send(room.host, { type: 'partner-rejoined' });
+                    console.log(`[room] ${code} guest reconnected`);
+                } else {
+                    send(room.host, { type: 'partner-joined' });
+                    console.log(`[room] ${code} guest joined`);
+                }
+                return;
+            }
+
+        }  // end if (msg.type === 'join')
 
         // 转发消息给对方
         const entry = getRoomByWs(ws);
         if (!entry) return;
-        const { code, room } = entry;
+        const { code: fwdCode, room: fwdRoom } = entry;
 
         // 缓存 board-init 消息
         if (msg.type === 'board-init') {
-            room.boardInit = msg;
+            fwdRoom.boardInit = msg;
         }
 
-        const partner = getPartner(room, ws);
+        const partner = getPartner(fwdRoom, ws);
         send(partner, msg);
     });
 
