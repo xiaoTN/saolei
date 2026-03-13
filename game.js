@@ -1205,15 +1205,34 @@ let _isPanning = false;
 
             // 计算新缩放比例
             const newScale = pinchStartScale * (currentDist / pinchStartDist);
-            scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+            const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
 
-            // 计算平移：双指中点的移动
+            // 计算双指中点的平移偏移
             const dx = currentCenter.x - pinchStartCenter.x;
             const dy = currentCenter.y - pinchStartCenter.y;
 
             const vp = getViewport(), board = getBoard();
             if (vp && board) {
-                [panX, panY] = clampPan(vp, board, pinchStartPan.x + dx, pinchStartPan.y + dy);
+                // 以双指中心点为锚点进行缩放补偿：
+                // 缩放前，双指中心点相对于棋盘 CSS 中心的屏幕距离 = pinchStartCenter - boardScreenCenter
+                // boardScreenCenter = vpCenter + pinchStartPan（因为 board 用 left:50%+translate(-50%,-50%) 居中，再加 pan 偏移）
+                const vpRect = vp.getBoundingClientRect();
+                const vpCenterX = vpRect.left + vpRect.width / 2;
+                const vpCenterY = vpRect.top + vpRect.height / 2;
+
+                // 双指起始中心相对于棋盘变换原点（CSS 中心）的偏移
+                const offsetX = pinchStartCenter.x - (vpCenterX + pinchStartPan.x);
+                const offsetY = pinchStartCenter.y - (vpCenterY + pinchStartPan.y);
+
+                // 缩放比例变化
+                const scaleRatio = clampedScale / pinchStartScale;
+
+                // 新的 pan = 起始 pan + 中点平移 + 缩放中心补偿
+                const newPanX = pinchStartPan.x + dx + offsetX * (1 - scaleRatio);
+                const newPanY = pinchStartPan.y + dy + offsetY * (1 - scaleRatio);
+
+                scale = clampedScale;
+                [panX, panY] = clampPan(vp, board, newPanX, newPanY);
             }
 
             if (!touchPanRAF) {
