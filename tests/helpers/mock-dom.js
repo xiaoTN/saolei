@@ -24,6 +24,10 @@ function makeMockCanvas() {
         restore: () => {},
         setLineDash: () => {},
         createLinearGradient: () => ({ addColorStop: () => {} }),
+        scale: () => {},
+        translate: () => {},
+        rotate: () => {},
+        transform: () => {},
         font: '',
         fillStyle: '',
         strokeStyle: '',
@@ -89,6 +93,7 @@ function setupMockDOM() {
     removeEventListener: () => {},
     innerWidth: 800,
     innerHeight: 600,
+    devicePixelRatio: 1,
     requestAnimationFrame: (fn) => setTimeout(fn, 16),
   };
 
