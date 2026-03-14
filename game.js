@@ -627,12 +627,10 @@ function initGame() {
             }
         };
         MP.onPartnerLeft = () => {
-            if (!gameOver) {
-                gameOver = true;
-                clearInterval(timerInterval);
-                showToast('对方已退出，游戏结束');
-                backToMenu();
-            }
+            gameOver = true;
+            clearInterval(timerInterval);
+            showToast('对方已退出，游戏结束');
+            backToMenu();
         };
         MP.onPartnerRejoined = () => {
             const el = document.getElementById('mpStatus');
