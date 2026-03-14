@@ -92,7 +92,16 @@ function setupMockDOM() {
     requestAnimationFrame: (fn) => setTimeout(fn, 16),
   };
 
-  global.navigator = { vibrate: () => {} };
+  try {
+    global.navigator = { vibrate: () => {} };
+  } catch (_) {
+    // Node.js 22+ 中 navigator 是只读 getter，改用 defineProperty 覆盖
+    Object.defineProperty(global, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: { vibrate: () => {} },
+    });
+  }
 
   global.localStorage = {
     getItem: () => null,
