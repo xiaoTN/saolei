@@ -968,7 +968,8 @@ function _setSettingsLocked(locked) {
         const el = document.getElementById(id);
         if (el) el.disabled = locked;
     });
-    document.querySelectorAll('.side-btn').forEach(btn => {
+    // 仅锁定单人模式的形状按钮，排除联机大厅的 mp-side-btn
+    document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
         btn.disabled = locked;
         btn.classList.toggle('disabled', locked);
     });
