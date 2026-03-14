@@ -2,7 +2,9 @@
 // 暴露全局对象 MP，供 game.js 调用
 
 const MP = (() => {
-    const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    const WS_URL = (window.Platform && window.Platform.isApp)
+        ? 'wss://unsleepy-rickie-gracefully.ngrok-free.dev'
+        : (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
 
     let _ws = null;
     let _role = null;   // 'host' | 'guest' | null
