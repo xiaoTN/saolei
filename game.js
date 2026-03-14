@@ -560,7 +560,8 @@ function _updateRestartBtnVisibility() {
     const isGuest = MP.isMultiplayer() && mpRole === 'guest';
     const restartBtn = document.getElementById('restartBtn');
     const restartResultBtn = document.getElementById('restartResultBtn');
-    if (restartBtn) restartBtn.style.display = isGuest ? 'none' : '';
+    // 用 visibility 而非 display，保持 header 三栏布局不变（状态组居中）
+    if (restartBtn) restartBtn.style.visibility = isGuest ? 'hidden' : '';
     if (restartResultBtn) restartResultBtn.style.display = isGuest ? 'none' : '';
 }
 
