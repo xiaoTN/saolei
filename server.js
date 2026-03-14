@@ -128,7 +128,16 @@ wss.on('connection', (ws) => {
     });
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
+    const { networkInterfaces } = require('os');
+    const nets = networkInterfaces();
+    const lanIps = [];
+    for (const iface of Object.values(nets)) {
+        for (const net of iface) {
+            if (net.family === 'IPv4' && !net.internal) lanIps.push(net.address);
+        }
+    }
     console.log(`[server] listening on http://localhost:${PORT}`);
-    console.log(`[server] WebSocket on ws://localhost:${PORT}`);
+    lanIps.forEach(ip => console.log(`[server] LAN: http://${ip}:${PORT}`));
+    console.log(`[server] WebSocket on ws://0.0.0.0:${PORT}`);
 });
