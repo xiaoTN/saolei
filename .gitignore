@@ -18,3 +18,4 @@ mobile/ios/
 mobile/keystore/*.keystore
 mobile/keystore/keystore.properties
 !mobile/keystore/README.md
+.worktrees/
