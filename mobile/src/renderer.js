@@ -11,7 +11,7 @@ let canvasEl = null;
 let ctx = null;
 let boardWidth = 0;
 let boardHeight = 0;
-let cellStates = Object.create(null); // key -> { state, value }
+let cellStates = Object.create(null); // key -> { state, value, partner }
 let hoveredCell = null; // 当前悬停的格子 key
 
 // 渐变颜色（模拟 SVG 的 linearGradient）
@@ -32,19 +32,25 @@ function createSVGBoard(boardEl, width, height, allCells = null) {
 
     // 创建 Canvas 元素
     canvasEl = document.createElement('canvas');
-    canvasEl.width = width;
-    canvasEl.height = height;
+    const dpr = window.devicePixelRatio || 1;
+    // 物理像素 = 逻辑像素 × DPR，避免 Retina/缩放后模糊
+    canvasEl.width = Math.round(width * dpr);
+    canvasEl.height = Math.round(height * dpr);
+    canvasEl.style.width = width + 'px';
+    canvasEl.style.height = height + 'px';
     canvasEl.style.display = 'block';
     canvasEl.style.cursor = 'pointer';
 
     // 获取 2D 上下文
     ctx = canvasEl.getContext('2d');
+    // 将坐标系缩放到物理像素，所有后续绘制坐标仍用逻辑像素
+    ctx.scale(dpr, dpr);
 
     // 初始化所有格子的状态
     const cells = allCells || getAllCells(sides);
     for (const [row, col] of cells) {
         const key = `${row},${col}`;
-        cellStates[key] = { state: 'normal', value: '' };
+        cellStates[key] = { state: 'normal', value: '', partner: false };
 
         // 扩展网格中的辅助连接格（8+4 的小正方形 / 36 的三角形 / 34 的三角形）使用更小字号
         // sides=36 扩展坐标：gr∈[0,rows) 为六边形，gr∈[rows,3*rows) 为三角形
@@ -101,6 +107,7 @@ function _drawCell(row, col) {
     ctx.closePath();
 
     // 设置填充色
+    const isPartner = state.partner;
     let fillColor;
     switch (state.state) {
         case 'normal':
@@ -113,10 +120,10 @@ function _drawCell(row, col) {
             }
             break;
         case 'revealed':
-            fillColor = '#1a1a2e';
+            fillColor = isPartner ? '#0d2e4a' : '#1a1a2e';
             break;
         case 'flagged':
-            fillColor = '#2a1a3c';
+            fillColor = isPartner ? '#0a2040' : '#2a1a3c';
             break;
         case 'mine':
             fillColor = '#ff4757';
@@ -325,10 +332,11 @@ function getSVGCell(row, col) {
 // 更新格子的视觉状态
 // state: 'normal' | 'revealed' | 'flagged' | 'mine'
 // value: 数字（仅 revealed 状态使用）
-function setCellState(row, col, state, value = '') {
+// partner: 是否为对方操作（联机模式）
+function setCellState(row, col, state, value = '', partner = false) {
     const key = `${row},${col}`;
     if (!cellStates[key]) return;
 
-    cellStates[key] = { state, value };
+    cellStates[key] = { state, value, partner };
     _drawCell(row, col);
 }
