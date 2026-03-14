@@ -4,9 +4,15 @@
   "description": "多边形扫雷联机服务器",
   "main": "server.js",
   "scripts": {
-    "server": "node server.js"
+    "server": "node server.js",
+    "test": "node --test tests/unit/*.test.js",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:e2e": "npx playwright test tests/e2e/"
   },
   "dependencies": {
     "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0"
   }
 }
