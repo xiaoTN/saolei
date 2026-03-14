@@ -177,7 +177,7 @@
                 <span class="status-badge">⏱️ <span id="timer">0</span>s</span>
                 <span class="status-badge mp-status" id="mpStatus" style="display:none">🟢 对方在线</span>
             </div>
-            <button class="restart-btn" onclick="restartGame()">🔄</button>
+            <button class="restart-btn" id="restartBtn" onclick="restartGame()">🔄</button>
         </div>
 
         <!-- 联机翻格统计（合作模式时显示） -->
@@ -199,7 +199,7 @@
                 <div class="result-time" id="resultTime">用时 0 秒</div>
                 <div class="result-actions">
                     <button class="result-btn secondary" onclick="backToMenu()">返回菜单</button>
-                    <button class="result-btn primary" onclick="restartGame()">再来一局</button>
+                    <button class="result-btn primary" id="restartResultBtn" onclick="restartGame()">再来一局</button>
                 </div>
             </div>
         </div>

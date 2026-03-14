@@ -541,12 +541,27 @@ function initGame() {
         const statsEl = document.getElementById('mpStats');
         if (statusEl) statusEl.style.display = '';
         if (statsEl) statsEl.style.display = '';
+        // 非房主隐藏重新开始按钮，并提示等待房主首次点击
+        _updateRestartBtnVisibility();
+        if (mpRole === 'guest') {
+            const st = document.getElementById('mpStatus');
+            if (st) st.textContent = '⏳ 等待房主首次点击…';
+        }
     } else {
         const statusEl = document.getElementById('mpStatus');
         const statsEl = document.getElementById('mpStats');
         if (statusEl) statusEl.style.display = 'none';
         if (statsEl) statsEl.style.display = 'none';
+        _updateRestartBtnVisibility();
     }
+}
+
+function _updateRestartBtnVisibility() {
+    const isGuest = MP.isMultiplayer() && mpRole === 'guest';
+    const restartBtn = document.getElementById('restartBtn');
+    const restartResultBtn = document.getElementById('restartResultBtn');
+    if (restartBtn) restartBtn.style.display = isGuest ? 'none' : '';
+    if (restartResultBtn) restartResultBtn.style.display = isGuest ? 'none' : '';
 }
 
 function _buildBoard() {
@@ -925,6 +940,9 @@ function initBoardFromRemote(mineLocationKeys) {
     _setSettingsLocked(true);
     _updateGameStatus();
     startTimer();
+    // 游戏正式开始，恢复状态栏显示
+    const st = document.getElementById('mpStatus');
+    if (st) st.textContent = '🟢 对方在线';
 }
 
 function _updateMpStats() {
