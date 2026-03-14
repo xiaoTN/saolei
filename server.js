@@ -58,7 +58,7 @@ const httpServer = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
-// rooms: code → { host: ws|null, guest: ws|null, config: obj|null, boardInit: msg|null }
+// rooms: code → { host, guest, config, boardInit, hostReady, guestReady }
 const rooms = new Map();
 
 function generateCode() {
@@ -96,7 +96,7 @@ wss.on('connection', (ws) => {
 
         if (msg.type === 'create') {
             const code = generateCode();
-            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, createdAt: Date.now() });
+            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, hostReady: false, guestReady: false, createdAt: Date.now() });
             ws._roomCode = code;
             ws._role = 'host';
             send(ws, { type: 'room-created', code, role: 'host' });
@@ -137,6 +137,26 @@ wss.on('connection', (ws) => {
         const entry = getRoomByWs(ws);
         if (!entry) return;
         const { code: fwdCode, room: fwdRoom } = entry;
+
+        // 处理 ready-restart：双方都准备好后广播 restart
+        if (msg.type === 'ready-restart') {
+            const role = ws._role;
+            if (role === 'host') fwdRoom.hostReady = true;
+            else if (role === 'guest') fwdRoom.guestReady = true;
+
+            const partner = getPartner(fwdRoom, ws);
+            send(partner, { type: 'partner-ready-restart' });
+
+            if (fwdRoom.hostReady && fwdRoom.guestReady) {
+                // 双方都准备好，广播 restart 并重置状态
+                fwdRoom.hostReady = false;
+                fwdRoom.guestReady = false;
+                send(fwdRoom.host, { type: 'restart' });
+                send(fwdRoom.guest, { type: 'restart' });
+                console.log(`[room] ${fwdCode} restart confirmed`);
+            }
+            return;
+        }
 
         // 缓存 board-init 消息
         if (msg.type === 'board-init') {

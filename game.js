@@ -221,21 +221,61 @@ function backToMenu() {
     mpRole = null;
     mpWaitingBoardInit = false;
     mpSentBoardInit = false;
+    mpReadyRestartSent = false;
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
     showScreen('modeScreen');
 }
 
+// 联机模式下的准备重启状态
+let mpReadyRestartSent = false;
+
 function restartGame() {
-    // 联机模式：只有房主才能重新开始
-    if (MP.isMultiplayer() && mpRole !== 'host') return;
+    // 联机模式：双方都要确认才能重新开始
+    if (MP.isMultiplayer()) {
+        if (mpReadyRestartSent) return; // 已经点过了，忽略重复点击
+        mpReadyRestartSent = true;
+        MP.send({ type: 'ready-restart' });
+        _setRestartBtnWaiting();
+        return;
+    }
     hideGameResult();
-    // 联机模式：通知对方重置
-    if (MP.isMultiplayer()) MP.send({ type: 'restart' });
     initGame();
     setTimeout(() => {
         if (window._panCenter) window._panCenter();
     }, 100);
+}
+
+// 设置重启按钮为等待状态
+function _setRestartBtnWaiting() {
+    const restartBtn = document.getElementById('restartBtn');
+    const restartResultBtn = document.getElementById('restartResultBtn');
+    const waitingText = '等待对方…';
+    if (restartBtn) {
+        restartBtn.textContent = '⏳';
+        restartBtn.disabled = true;
+        restartBtn.title = waitingText;
+    }
+    if (restartResultBtn) {
+        restartResultBtn.textContent = waitingText;
+        restartResultBtn.disabled = true;
+    }
+}
+
+// 重置重启按钮状态
+function _resetRestartBtnState() {
+    mpReadyRestartSent = false;
+    const restartBtn = document.getElementById('restartBtn');
+    const restartResultBtn = document.getElementById('restartResultBtn');
+    if (restartBtn) {
+        restartBtn.textContent = '🔄';
+        restartBtn.disabled = false;
+        restartBtn.title = '';
+    }
+    if (restartResultBtn) {
+        restartResultBtn.textContent = '再来一局';
+        restartResultBtn.disabled = false;
+    }
 }
 
 // ─── 联机 UI 控制函数 ──────────────────────────────────────────
@@ -620,10 +660,14 @@ function initGame() {
                 }
             }
             if (type === 'restart') {
-                // 房主重新开始，guest 同步重置棋盘
+                // 双方都确认重新开始，同步重置棋盘
                 hideGameResult();
                 initGame();
                 if (window._panCenter) setTimeout(() => window._panCenter(), 100);
+            }
+            if (type === 'partner-ready-restart') {
+                // 对方已点击重新开始，显示提示
+                showToast('对方已准备，等待你确认…');
             }
         };
         MP.onPartnerLeft = () => {
@@ -660,12 +704,8 @@ function initGame() {
 }
 
 function _updateRestartBtnVisibility() {
-    const isGuest = MP.isMultiplayer() && mpRole === 'guest';
-    const restartBtn = document.getElementById('restartBtn');
-    const restartResultBtn = document.getElementById('restartResultBtn');
-    // 用 visibility 而非 display，保持 header 三栏布局不变（状态组居中）
-    if (restartBtn) restartBtn.style.visibility = isGuest ? 'hidden' : '';
-    if (restartResultBtn) restartResultBtn.style.display = isGuest ? 'none' : '';
+    // 联机模式下双方都需要确认才能重新开始，所以都显示按钮
+    _resetRestartBtnState();
 }
 
 function _buildBoard() {
