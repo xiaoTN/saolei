@@ -471,9 +471,12 @@ function _updatePreviewInfo() {
 }
 
 function initGame() {
-    const selectedBtn = document.querySelector('.side-btn.selected:not(.mp-side-btn)');
-    sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
-    if (!SUPPORTED_SIDES.has(sides)) sides = 4;
+    // 联机模式下 sides 已由房间配置设定，不从 DOM 读取覆盖
+    if (!mpRole) {
+        const selectedBtn = document.querySelector('.side-btn.selected:not(.mp-side-btn)');
+        sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
+        if (!SUPPORTED_SIDES.has(sides)) sides = 4;
+    }
     cellSize = _effectiveCellSize();
 
     // 非自定义模式：直接从预设读取，不依赖滑动条当前值
