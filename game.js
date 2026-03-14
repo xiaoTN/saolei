@@ -161,10 +161,10 @@ function showScreen(id) {
         gameEl.classList.remove('active');
         gameStarted = false;
         _setSettingsLocked(false);
-        document.querySelectorAll('.side-btn').forEach(btn => {
+        document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
             btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
         });
-        document.querySelectorAll('.diff-btn').forEach(btn => {
+        document.querySelectorAll('.diff-btn:not(.mp-diff-btn)').forEach(btn => {
             btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
         });
     } else if (id === 'gameScreen') {
@@ -344,7 +344,7 @@ function hideGameResult() {
 // 边数按钮选择
 function selectSides(s) {
     sides = SUPPORTED_SIDES.has(s) ? s : 4;
-    document.querySelectorAll('.side-btn').forEach(btn => {
+    document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
     cellSize = _effectiveCellSize();
@@ -435,7 +435,7 @@ function _updatePreviewInfo() {
 }
 
 function initGame() {
-    const selectedBtn = document.querySelector('.side-btn.selected');
+    const selectedBtn = document.querySelector('.side-btn.selected:not(.mp-side-btn)');
     sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
     if (!SUPPORTED_SIDES.has(sides)) sides = 4;
     cellSize = _effectiveCellSize();
