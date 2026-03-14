@@ -835,7 +835,7 @@ function handleClick(row, col, opts = {}) {
     } else {
         if (mineCount <= 0) return;
         flagged[key] = true;
-        setCellState(row, col, 'flagged');
+        setCellState(row, col, 'flagged', '', opts.fromRemote || false);
         mineCount--;
     }
     vibrate(15);
@@ -1005,7 +1005,7 @@ function revealCell(row, col, fromRemote = false) {
     }
 
     for (const [ur, uc, value] of updates) {
-        setCellState(ur, uc, 'revealed', value);
+        setCellState(ur, uc, 'revealed', value, fromRemote);
     }
 
     if (MP.isMultiplayer() && updates.length > 0) {
