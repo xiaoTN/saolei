@@ -5,7 +5,26 @@
 
 // ─── 工具函数 ──────────────────────────────────────────────────
 
-// 震动功能已迁移到 shared/haptics.js
+// 顶部 Toast 通知（自动消失，无需用户操作）
+function showToast(message, duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    container.appendChild(el);
+    // 触发入场动画
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => el.classList.add('toast-show'));
+    });
+    setTimeout(() => {
+        el.classList.remove('toast-show');
+        el.classList.add('toast-hide');
+        el.addEventListener('transitionend', () => el.remove(), { once: true });
+    }, duration);
+}
+
+
 // 保留此函数作为兼容层
 function vibrate(pattern) {
     if (window.HapticsAdapter) {
@@ -564,7 +583,7 @@ function initGame() {
             if (!gameOver) {
                 gameOver = true;
                 clearInterval(timerInterval);
-                alert('对方已退出，游戏结束');
+                showToast('对方已退出，游戏结束');
                 backToMenu();
             }
         };
@@ -573,7 +592,7 @@ function initGame() {
             if (el) { el.textContent = '🟢 对方在线'; el.style.display = ''; }
         };
         MP.onRoomDestroyed = () => {
-            alert('房间已断开，返回主菜单');
+            showToast('房间已断开，返回主菜单');
             backToMenu();
         };
         const statusEl = document.getElementById('mpStatus');
