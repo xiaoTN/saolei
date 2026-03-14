@@ -266,7 +266,10 @@ async function refreshRoomList() {
         listEl.innerHTML = rooms.map(r => {
             const shape = sidesLabel[r.config.sides] || `${r.config.sides}边形`;
             const diff = diffLabel[r.config.difficulty] || r.config.difficulty || '';
-            const desc = [shape, diff].filter(Boolean).join(' · ');
+            const d = new Date(r.createdAt);
+            const pad = n => String(n).padStart(2, '0');
+            const timeStr = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            const desc = [shape, diff, timeStr].filter(Boolean).join(' · ');
             return `<div class="room-item" onclick="quickJoinRoom('${r.code}')">
                 <div class="room-item-info">
                     <div class="room-item-code">${r.code}</div>

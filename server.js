@@ -22,7 +22,7 @@ const httpServer = http.createServer((req, res) => {
         const list = [];
         for (const [code, room] of rooms) {
             if (room.host && !room.guest) {
-                list.push({ code, config: room.config || {} });
+                list.push({ code, config: room.config || {}, createdAt: room.createdAt });
             }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -79,7 +79,7 @@ wss.on('connection', (ws) => {
 
         if (msg.type === 'create') {
             const code = generateCode();
-            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null });
+            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, createdAt: Date.now() });
             ws._roomCode = code;
             ws._role = 'host';
             send(ws, { type: 'room-created', code, role: 'host' });
