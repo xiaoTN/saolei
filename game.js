@@ -251,35 +251,79 @@ function enterMultiplayer() {
     refreshRoomList();
 }
 
+const SIDES_LABEL = { 3: '三角形', 4: '正方形', 5: '五边形', 6: '六边形', 8: '八边形', 34: '扭棱正方', 36: '三六混合' };
+const DIFF_LABEL = { easy: '简单', medium: '中等', hard: '困难', hell: '地狱' };
+
+function formatDateTime(ts) {
+    const d = new Date(ts);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+let _refreshing = false;
+
 // 刷新房间列表
 async function refreshRoomList() {
+    if (_refreshing) return;
+    _refreshing = true;
+    const refreshBtn = document.querySelector('.room-list-refresh');
+    if (refreshBtn) refreshBtn.disabled = true;
+
     const listEl = document.getElementById('roomList');
     try {
         const res = await fetch('/api/rooms');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rooms = await res.json();
+        listEl.innerHTML = '';
         if (rooms.length === 0) {
-            listEl.innerHTML = '<div class="room-list-empty">暂无等待中的房间</div>';
+            const empty = document.createElement('div');
+            empty.className = 'room-list-empty';
+            empty.textContent = '暂无等待中的房间';
+            listEl.appendChild(empty);
             return;
         }
-        const sidesLabel = { 3: '三角形', 4: '正方形', 5: '五边形', 6: '六边形', 8: '八边形', 34: '扭棱正方', 36: '三六混合' };
-        const diffLabel = { easy: '简单', medium: '中等', hard: '困难', hell: '地狱' };
-        listEl.innerHTML = rooms.map(r => {
-            const shape = sidesLabel[r.config.sides] || `${r.config.sides}边形`;
-            const diff = diffLabel[r.config.difficulty] || r.config.difficulty || '';
-            const d = new Date(r.createdAt);
-            const pad = n => String(n).padStart(2, '0');
-            const timeStr = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        for (const r of rooms) {
+            const sides = r.config && r.config.sides;
+            const shape = SIDES_LABEL[sides] || (sides != null ? `${sides}边形` : '未知形状');
+            const diff = DIFF_LABEL[r.config && r.config.difficulty] || '';
+            const timeStr = r.createdAt ? formatDateTime(r.createdAt) : '';
             const desc = [shape, diff, timeStr].filter(Boolean).join(' · ');
-            return `<div class="room-item" onclick="quickJoinRoom('${r.code}')">
-                <div class="room-item-info">
-                    <div class="room-item-code">${r.code}</div>
-                    <div class="room-item-desc">${desc}</div>
-                </div>
-                <div class="room-item-join">加入 →</div>
-            </div>`;
-        }).join('');
+
+            const item = document.createElement('div');
+            item.className = 'room-item';
+            item.addEventListener('click', () => quickJoinRoom(r.code));
+
+            const info = document.createElement('div');
+            info.className = 'room-item-info';
+
+            const codeEl = document.createElement('div');
+            codeEl.className = 'room-item-code';
+            codeEl.textContent = r.code;
+
+            const descEl = document.createElement('div');
+            descEl.className = 'room-item-desc';
+            descEl.textContent = desc;
+
+            info.appendChild(codeEl);
+            info.appendChild(descEl);
+
+            const joinEl = document.createElement('div');
+            joinEl.className = 'room-item-join';
+            joinEl.textContent = '加入 →';
+
+            item.appendChild(info);
+            item.appendChild(joinEl);
+            listEl.appendChild(item);
+        }
     } catch {
-        listEl.innerHTML = '<div class="room-list-empty">获取房间列表失败</div>';
+        listEl.innerHTML = '';
+        const err = document.createElement('div');
+        err.className = 'room-list-empty';
+        err.textContent = '获取房间列表失败';
+        listEl.appendChild(err);
+    } finally {
+        _refreshing = false;
+        if (refreshBtn) refreshBtn.disabled = false;
     }
 }
 

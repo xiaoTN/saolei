@@ -14,11 +14,28 @@ const MIME = {
     '.ico':  'image/x-icon',
 };
 
+// 简单速率限制：每个 IP 每 5 秒最多 10 次 /api/rooms 请求
+const _rateMap = new Map();
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const entry = _rateMap.get(ip) || { count: 0, resetAt: now + 5000 };
+    if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 5000; }
+    entry.count++;
+    _rateMap.set(ip, entry);
+    return entry.count <= 10;
+}
+
 const httpServer = http.createServer((req, res) => {
     const urlPath = req.url.split('?')[0];
 
     // 房间列表 API：返回等待中（只有 host，guest 未加入）的房间
     if (urlPath === '/api/rooms') {
+        const ip = req.socket.remoteAddress || 'unknown';
+        if (!checkRateLimit(ip)) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Too Many Requests' }));
+            return;
+        }
         const list = [];
         for (const [code, room] of rooms) {
             if (room.host && !room.guest) {
