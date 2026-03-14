@@ -208,7 +208,11 @@ function backToMenu() {
 }
 
 function restartGame() {
+    // 联机模式：只有房主才能重新开始
+    if (MP.isMultiplayer() && mpRole !== 'host') return;
     hideGameResult();
+    // 联机模式：通知对方重置
+    if (MP.isMultiplayer()) MP.send({ type: 'restart' });
     initGame();
     setTimeout(() => {
         if (window._panCenter) window._panCenter();
@@ -469,7 +473,8 @@ function initGame() {
     totalCellsCount = 0;
     touchHoldTimers = {};
     touchLongPressFired = {};
-    mpWaitingBoardInit = false;
+    // 联机模式：guest 必须等待 host 触发首次点击（board-init）才能获得棋盘雷位
+    mpWaitingBoardInit = MP.isMultiplayer() && mpRole === 'guest';
     mpSentBoardInit = false;
 
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
@@ -508,6 +513,12 @@ function initGame() {
                 if (!mpSentBoardInit) {
                     initBoardFromRemote(msg.mineLocations);
                 }
+            }
+            if (type === 'restart') {
+                // 房主重新开始，guest 同步重置棋盘
+                hideGameResult();
+                initGame();
+                if (window._panCenter) setTimeout(() => window._panCenter(), 100);
             }
         };
         MP.onPartnerLeft = () => {
@@ -645,7 +656,6 @@ function handleClick(row, col, opts = {}) {
 
     // 首次点击：无论何种操作都直接打开格子，触发安全放雷
     if (firstClick) {
-        if (MP.isMultiplayer()) mpWaitingBoardInit = false; // 本端先点，不等待
         _revealCell_firstClick(row, col);
         // 联机：board-init 已在 _revealCell_firstClick 里发送，同步首次翻格结果
         if (MP.isMultiplayer()) {
