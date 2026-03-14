@@ -32,13 +32,19 @@ function createSVGBoard(boardEl, width, height, allCells = null) {
 
     // 创建 Canvas 元素
     canvasEl = document.createElement('canvas');
-    canvasEl.width = width;
-    canvasEl.height = height;
+    const dpr = window.devicePixelRatio || 1;
+    // 物理像素 = 逻辑像素 × DPR，避免 Retina/缩放后模糊
+    canvasEl.width = Math.round(width * dpr);
+    canvasEl.height = Math.round(height * dpr);
+    canvasEl.style.width = width + 'px';
+    canvasEl.style.height = height + 'px';
     canvasEl.style.display = 'block';
     canvasEl.style.cursor = 'pointer';
 
     // 获取 2D 上下文
     ctx = canvasEl.getContext('2d');
+    // 将坐标系缩放到物理像素，所有后续绘制坐标仍用逻辑像素
+    ctx.scale(dpr, dpr);
 
     // 初始化所有格子的状态
     const cells = allCells || getAllCells(sides);
