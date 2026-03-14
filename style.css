@@ -572,6 +572,62 @@ input:disabled {
 
 .lobby-back { margin-bottom: 16px; }
 
+/* ── 房间列表 ─────────────────────────────────────────── */
+.room-list-section {
+    margin-top: 14px;
+}
+
+.room-list-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.room-list-label {
+    font-size: 12px; color: #666;
+}
+
+.room-list-refresh {
+    background: none; border: 1px solid #444; border-radius: 6px;
+    color: #888; font-size: 11px; padding: 3px 8px; cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.room-list-refresh:hover { border-color: #7c7cff; color: #7c7cff; }
+
+.room-list {
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 180px; overflow-y: auto;
+}
+
+.room-list-empty {
+    text-align: center; color: #555; font-size: 13px; padding: 16px 0;
+}
+
+.room-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #1a1a2e; border: 1px solid #333; border-radius: 8px;
+    padding: 10px 12px; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.room-item:hover { border-color: #7c7cff; background: #1f1f3a; }
+
+.room-item-info {
+    display: flex; flex-direction: column; gap: 2px;
+}
+
+.room-item-code {
+    font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: #fff;
+}
+
+.room-item-desc {
+    font-size: 11px; color: #888;
+}
+
+.room-item-join {
+    font-size: 12px; color: #7c7cff; font-weight: 600;
+}
+
 /* ── 等待室屏 ────────────────────────────────────────── */
 .waiting-screen {
     position: fixed; inset: 0;

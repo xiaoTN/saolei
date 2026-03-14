@@ -229,6 +229,42 @@ function enterSinglePlayer() {
 // 进入联机大厅
 function enterMultiplayer() {
     showScreen('lobbyScreen');
+    refreshRoomList();
+}
+
+// 刷新房间列表
+async function refreshRoomList() {
+    const listEl = document.getElementById('roomList');
+    try {
+        const res = await fetch('/api/rooms');
+        const rooms = await res.json();
+        if (rooms.length === 0) {
+            listEl.innerHTML = '<div class="room-list-empty">暂无等待中的房间</div>';
+            return;
+        }
+        const sidesLabel = { 3: '三角形', 4: '正方形', 5: '五边形', 6: '六边形', 8: '八边形', 34: '扭棱正方', 36: '三六混合' };
+        const diffLabel = { easy: '简单', medium: '中等', hard: '困难', hell: '地狱' };
+        listEl.innerHTML = rooms.map(r => {
+            const shape = sidesLabel[r.config.sides] || `${r.config.sides}边形`;
+            const diff = diffLabel[r.config.difficulty] || r.config.difficulty || '';
+            const desc = [shape, diff].filter(Boolean).join(' · ');
+            return `<div class="room-item" onclick="quickJoinRoom('${r.code}')">
+                <div class="room-item-info">
+                    <div class="room-item-code">${r.code}</div>
+                    <div class="room-item-desc">${desc}</div>
+                </div>
+                <div class="room-item-join">加入 →</div>
+            </div>`;
+        }).join('');
+    } catch {
+        listEl.innerHTML = '<div class="room-list-empty">获取房间列表失败</div>';
+    }
+}
+
+// 点击房间列表直接加入
+async function quickJoinRoom(code) {
+    document.getElementById('joinCodeInput').value = code;
+    await joinRoom();
 }
 
 // 从大厅返回模式选择

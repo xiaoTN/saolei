@@ -16,6 +16,20 @@ const MIME = {
 
 const httpServer = http.createServer((req, res) => {
     const urlPath = req.url.split('?')[0];
+
+    // 房间列表 API：返回等待中（只有 host，guest 未加入）的房间
+    if (urlPath === '/api/rooms') {
+        const list = [];
+        for (const [code, room] of rooms) {
+            if (room.host && !room.guest) {
+                list.push({ code, config: room.config || {} });
+            }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(list));
+        return;
+    }
+
     const filePath = path.join(__dirname, urlPath === '/' ? 'index.html' : urlPath);
     const ext = path.extname(filePath);
     fs.readFile(filePath, (err, data) => {

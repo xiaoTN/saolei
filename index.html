@@ -138,6 +138,16 @@
                     <button class="join-btn" onclick="joinRoom()">加入</button>
                 </div>
                 <div class="lobby-error" id="lobbyError"></div>
+
+                <div class="room-list-section">
+                    <div class="room-list-header">
+                        <span class="room-list-label">当前可加入的房间</span>
+                        <button class="room-list-refresh" onclick="refreshRoomList()">刷新</button>
+                    </div>
+                    <div class="room-list" id="roomList">
+                        <div class="room-list-empty">暂无等待中的房间</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
