@@ -136,6 +136,28 @@ python3 -m http.server 8000
 # 打开 http://127.0.0.1:8000/
 ```
 
+### 联机服务（多人模式）
+
+**本地/局域网**（注意：部分路由器有 AP 隔离，局域网可能无法跨设备访问）
+
+```bash
+node server.js
+# 启动后会打印 LAN 地址，手机同局域网访问该地址即可
+```
+
+**公网访问（推荐，绕开 AP 隔离）**
+
+需先安装 ngrok：`brew install ngrok`
+
+```bash
+# 终端 1：启动本地服务
+node server.js
+
+# 终端 2：开启 ngrok 隧道
+ngrok http 8765
+# ngrok 会输出 https://xxxx.ngrok-free.app，手机访问该地址即可联机
+```
+
 ### 最小验证清单
 
 ```bash
