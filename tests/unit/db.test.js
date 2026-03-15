@@ -14,6 +14,28 @@ function createDb() {
     return { db, sqlite };
 }
 
+describe('db.saveMatch 参数校验', () => {
+    let db, sqlite;
+    afterEach(() => { if (sqlite) { sqlite.close(); sqlite = null; } });
+
+    test('duration_seconds 为负数时打印警告并仍可写入', () => {
+        ({ db, sqlite } = createDb());
+        const warnings = [];
+        const origWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(' '));
+        db.saveMatch({
+            room_code: 'ZZZZ', board_type: '4', difficulty: 'easy',
+            rows: 9, cols: 9, mines: 10, winner: 'host',
+            duration_seconds: -1, loser_revealed: 0,
+            first_click_at: Date.now(),
+        });
+        console.warn = origWarn;
+        assert.ok(warnings.some(w => w.includes('duration')), '应有 duration 警告日志');
+        const rows = db.getLeaderboard({ board_type: '4', difficulty: 'easy', limit: 5 });
+        assert.equal(rows.length, 1);
+    });
+});
+
 describe('db.saveMatch', () => {
     let db, sqlite;
 

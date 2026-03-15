@@ -1,5 +1,7 @@
 // server.js — 多边形扫雷联机信令服务器
 const { WebSocketServer } = require('ws');
+const db = require('./server/db');
+db.init();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -96,7 +98,7 @@ wss.on('connection', (ws) => {
 
         if (msg.type === 'create') {
             const code = generateCode();
-            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, hostReady: false, guestReady: false, createdAt: Date.now() });
+            rooms.set(code, { host: ws, guest: null, config: msg.config || null, boardInit: null, hostReady: false, guestReady: false, createdAt: Date.now(), firstClickAt: null, matchSaved: false });
             ws._roomCode = code;
             ws._role = 'host';
             send(ws, { type: 'room-created', code, role: 'host' });
@@ -151,6 +153,8 @@ wss.on('connection', (ws) => {
                 // 双方都准备好，广播 restart 并重置状态
                 fwdRoom.hostReady = false;
                 fwdRoom.guestReady = false;
+                fwdRoom.firstClickAt = null;
+                fwdRoom.matchSaved = false;
                 send(fwdRoom.host, { type: 'restart' });
                 send(fwdRoom.guest, { type: 'restart' });
                 console.log(`[room] ${fwdCode} restart confirmed`);
@@ -158,9 +162,39 @@ wss.on('connection', (ws) => {
             return;
         }
 
-        // 缓存 board-init 消息
+        // 缓存 board-init 消息，记录首次点击时间（first-write-wins）
         if (msg.type === 'board-init') {
             fwdRoom.boardInit = msg;
+            if (!fwdRoom.firstClickAt) {
+                fwdRoom.firstClickAt = Date.now();
+            }
+        }
+
+        // 处理 game-over：踩雷方上报，服务端写库
+        if (msg.type === 'game-over' && msg.result === 'lose') {
+            if (!fwdRoom.matchSaved && fwdRoom.firstClickAt && fwdRoom.config) {
+                const winner = ws._role === 'host' ? 'guest' : 'host';
+                const duration_seconds = Math.floor((Date.now() - fwdRoom.firstClickAt) / 1000);
+                try {
+                    db.saveMatch({
+                        room_code:        fwdCode,
+                        board_type:       String(fwdRoom.config.sides),
+                        difficulty:       fwdRoom.config.difficulty || 'custom',
+                        rows:             fwdRoom.config.rows,
+                        cols:             fwdRoom.config.cols,
+                        mines:            fwdRoom.config.mines,
+                        winner,
+                        duration_seconds,
+                        loser_revealed:   msg.revealedCount ?? 0,
+                        first_click_at:   fwdRoom.firstClickAt,
+                    });
+                    fwdRoom.matchSaved = true;
+                    console.log(`[db] ${fwdCode} match saved, winner=${winner}, duration=${duration_seconds}s`);
+                } catch (e) {
+                    console.error('[db] saveMatch failed:', e);
+                }
+            }
+            // 不 return，让 game-over 消息继续向下转发给对方
         }
 
         const partner = getPartner(fwdRoom, ws);
