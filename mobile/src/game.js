@@ -232,6 +232,7 @@ function backToMenu() {
     mpReadyRestartSent = false;
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
+    MpConflict.clear();
     showScreen('startScreen');
     refreshRoomList();
 }
@@ -618,6 +619,7 @@ function initGame() {
     // 联机模式初始化
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
+    MpConflict.clear();
     _updateMpStats();
 
     if (MP.isMultiplayer()) {
@@ -625,6 +627,7 @@ function initGame() {
             const { type, key, keys } = msg;
             if (type === 'reveal') {
                 const [r, c] = key.split(',').map(Number);
+                MpConflict.detectConflict(key, (msg) => showToast(msg, 2000));
                 if (board[key] === -1) {
                     // 对方踩雷，显示失败界面
                     mineLocations.forEach(([mr, mc]) => {
@@ -927,6 +930,11 @@ function handleRightClick(e, row, col, opts = {}) {
 
     if (revealed[key] || flagged[key]) return;
     startTimer();
+
+    // 联机模式：记录本端 reveal 时间戳，供冲突检测使用
+    if (MP.isMultiplayer() && !opts.fromRemote) {
+        MpConflict.recordLocalReveal(key);
+    }
 
     if (board[key] === -1) {
         mineLocations.forEach(([r, c]) => {
@@ -1477,3 +1485,6 @@ selectDifficulty('medium');
 // 初始显示统一大厅，并拉取房间列表
 showScreen('startScreen');
 refreshRoomList();
+
+// ── 测试钩子（仅供单元测试使用，浏览器运行时无副作用）─────────────────
+

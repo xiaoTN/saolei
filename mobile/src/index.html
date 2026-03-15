@@ -13,7 +13,7 @@
     <div class="start-screen" id="startScreen">
         <div class="start-container">
             <h1 class="game-title">💣 多边形扫雷</h1>
-
+            
             <div class="settings-card">
                 <div class="setting-section">
                     <div class="section-label">棋盘形状</div>
@@ -155,10 +155,11 @@
     <!-- Toast 通知容器 -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- 加载顺序：platform → storage → haptics → geometry → renderer → multiplayer → game -->
+    <!-- 加载顺序：platform → storage → haptics → mp-conflict → geometry → renderer → game -->
     <script src="shared/platform.js"></script>
     <script src="shared/storage.js"></script>
     <script src="shared/haptics.js"></script>
+    <script src="shared/mp-conflict.js"></script>
     <script src="geometry.js"></script>
     <script src="renderer.js"></script>
     <script src="multiplayer.js"></script>
