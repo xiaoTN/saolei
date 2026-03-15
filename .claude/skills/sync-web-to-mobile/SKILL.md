@@ -61,35 +61,39 @@ diff -r shared/ mobile/src/shared/ && echo "shared: OK" || echo "FAIL"
 
 预期输出：`✔ Sync finished in X.XXs`
 
-### 6. 提交 mobile 端改动
+### 6. 手动同步 index.html（必须）
+
+见下文「index.html 同步」章节，检查并同步 DOM 差异。
+
+### 7. 提交 mobile 端改动
 
 ```bash
 git add mobile/src/
 git commit -m "chore: 同步 web 端代码到 mobile/src/"
 ```
 
-## index.html 同步（手动）
+## index.html 同步（手动，必须执行）
 
-`index.html` 不会被 `sync-assets.sh` 自动覆盖，因为 mobile 版需要保留：
-- 移动端专用 viewport meta 标签
-- Apple Web App meta 标签
-- 不带 `?v=xxx` 缓存参数的 script 标签
+`index.html` 不会被 `sync-assets.sh` 自动覆盖。**每次触发本 skill 都必须检查并同步 index.html。**
 
-**手动同步步骤：**
+### 同步原则
 
-1. 对比 web 版 `index.html` 与 `mobile/src/index.html` 的差异
-2. 将 web 版新增的 DOM 元素复制到 mobile 版
+**web 版是唯一源头**，mobile 版的所有 DOM 结构必须以 web 版为准。
+
+mobile 版（`mobile/src/index.html`）只允许保留以下差异：
+- `<head>` 里的移动端专用 meta 标签（viewport、apple-mobile-web-app）
+- 脚本标签**不带** `?v=xxx` 缓存参数
+
+**不允许在 `mobile/src/index.html` 里单独开发新功能**，所有功能改动必须先在 web 版实现，再同步到 mobile。
+
+### 手动同步步骤
+
+1. 运行 diff 查看差异：
+   ```bash
+   diff index.html mobile/src/index.html
+   ```
+2. 将 web 版的 `<body>` 内容同步到 mobile 版，保留 mobile 专用的 `<head>` 和脚本标签（去掉 `?v=xxx`）
 3. 确保脚本加载顺序一致：`platform → storage → haptics → geometry → renderer → multiplayer → game`
-
-### 需要保持同步的关键 DOM 元素
-
-- `#modeScreen` — 模式选择屏
-- `#startScreen` — 开始界面
-- `#lobbyScreen` — 联机大厅
-- `#waitingScreen` — 等待室
-- `#gameScreen` — 游戏界面
-- `#toastContainer` — Toast 通知容器
-- `#mpStatus` / `#mpStats` — 联机状态显示
 
 ## 验证清单
 
