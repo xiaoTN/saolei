@@ -11,6 +11,7 @@
     "test:mp-e2e": "npx playwright test --config playwright.mp.config.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.8.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {
