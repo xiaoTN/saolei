@@ -26,10 +26,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
+    overflow: hidden;
     transition: opacity 0.3s ease, transform 0.3s ease;
     z-index: 10;
 }
@@ -43,6 +40,16 @@ body {
 .start-container {
     width: 100%;
     max-width: 420px;
+    margin: 0 auto;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 20px 40px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+.start-container::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
 }
 
 .game-title {
@@ -247,6 +254,27 @@ body {
 
 .start-icon {
     font-size: 14px;
+}
+
+.action-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.action-row .start-btn {
+    flex: 1;
+    margin-bottom: 0;
+    font-size: 16px;
+    padding: 14px 12px;
+}
+
+.create-room-btn {
+    background: linear-gradient(135deg, #a55eea, #7c3aed) !important;
+}
+
+.create-room-btn:hover {
+    box-shadow: 0 8px 25px rgba(165, 94, 234, 0.4) !important;
 }
 
 .tips {
@@ -471,67 +499,7 @@ input:disabled {
 #mineRatio.medium { color: #ffa502; }
 #mineRatio.hard   { color: #ff4757; }
 
-/* ── 模式选择屏 ─────────────────────────────────────── */
-.mode-screen {
-    position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: #0a0a1a;
-    z-index: 10;
-}
-
-.mode-container {
-    display: flex; flex-direction: column; align-items: center; gap: 32px;
-    padding: 24px;
-}
-
-.mode-cards {
-    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
-}
-
-.mode-card {
-    background: #1a1a2e;
-    border: 2px solid #2a2a4c;
-    border-radius: 16px;
-    padding: 28px 36px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, transform 0.15s;
-    min-width: 140px;
-}
-
-.mode-card:hover {
-    border-color: #7c7cff;
-    transform: translateY(-2px);
-}
-
-.mode-icon { font-size: 40px; margin-bottom: 10px; }
-
-.mode-name {
-    font-size: 18px; font-weight: bold;
-    color: #eee;
-    margin-bottom: 6px;
-}
-
-.mode-desc { font-size: 12px; color: #888; }
-
 /* ── 联机大厅屏 ─────────────────────────────────────── */
-.lobby-screen {
-    position: fixed; inset: 0; overflow-y: auto;
-    background: #0a0a1a;
-    z-index: 10;
-}
-
-.lobby-container {
-    max-width: 480px; margin: 0 auto; padding: 20px 16px 40px;
-}
-
-.lobby-header {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 24px;
-}
-
-.lobby-header h2 { margin: 0; font-size: 20px; }
-
 .lobby-section { margin-bottom: 20px; }
 
 .lobby-section-title {
@@ -569,8 +537,6 @@ input:disabled {
 .lobby-error {
     color: #ff6b6b; font-size: 13px; margin-top: 8px; min-height: 18px;
 }
-
-.lobby-back { margin-bottom: 16px; }
 
 /* ── 房间列表 ─────────────────────────────────────────── */
 .room-list-section {

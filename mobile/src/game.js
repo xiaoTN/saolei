@@ -84,19 +84,27 @@ const DEFAULT_CELL_SIZE = 40; // 基准格子大小（sides=4 正方形边长 / 
 
 // 各模式的有效 cellSize，确保主要多边形面积与 sides=4 正方形面积（40²=1600px²）一致：
 //   sides=4:  正方形面积 = cellSize²                          → cellSize = 40
+//   sides=3:  等边三角形面积 = (√3/4)·cellSize²              → cellSize = √(6400/√3) ≈ 60.78
+//   sides=5:  Cairo 五边形面积 = |Tx×Ty|/4·cellSize²         → cellSize ≈ 31.03
 //   sides=34: 正方形面积 = (cellSize/2)²                     → cellSize = 80
 //   sides=8:  正八边形面积 = 2(1+√2)·(cellSize/(1+√2))²      → cellSize = √(800(1+√2)) ≈ 43.95
 //   sides=6:  正六边形面积 = (3√3/2)·(cellSize/2)²           → cellSize = 2√(3200/(3√3)) ≈ 49.63
 //   sides=36: rectification 六边形面积 = 9√3·cellSize²/8     → cellSize = √(12800/(9√3)) ≈ 28.64
-//   其他模式（3,5）：不缩放
 function _effectiveCellSize() {
     const S = DEFAULT_CELL_SIZE; // 基准边长 40
     const TARGET_AREA = S * S;   // 目标面积 1600
+    if (sides === 3)  return Math.sqrt(TARGET_AREA * 4 / Math.sqrt(3));
+    if (sides === 5) {
+        const cairoCoeff = Math.abs(
+            _CAIRO_TX[0] * _CAIRO_TY[1] - _CAIRO_TX[1] * _CAIRO_TY[0]
+        ) / 4;
+        return Math.sqrt(TARGET_AREA / cairoCoeff);
+    }
     if (sides === 34) return S * 2;
     if (sides === 8)  return Math.sqrt(TARGET_AREA * (1 + Math.SQRT2) / 2);
     if (sides === 6)  return 2 * Math.sqrt(TARGET_AREA * 2 / (3 * Math.sqrt(3)));
     if (sides === 36) return Math.sqrt(TARGET_AREA * 8 / (9 * Math.sqrt(3)));
-    return S;
+    return S; // sides=4
 }
 const MIN_SCALE = 1;          // 最小缩放比例
 const MAX_SCALE = 2;          // 最大缩放比例
@@ -164,7 +172,7 @@ const DIFFICULTY_PRESETS = {
 // ─── 界面切换 ──────────────────────────────────────────────────
 
 // 新增屏幕（display 控制）
-const NEW_SCREENS = ['modeScreen', 'lobbyScreen', 'waitingScreen'];
+const NEW_SCREENS = ['waitingScreen'];
 
 function showScreen(id) {
     // 处理新增屏幕（display 切换）
@@ -180,10 +188,10 @@ function showScreen(id) {
         gameEl.classList.remove('active');
         gameStarted = false;
         _setSettingsLocked(false);
-        document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
+        document.querySelectorAll('.side-btn').forEach(btn => {
             btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
         });
-        document.querySelectorAll('.diff-btn:not(.mp-diff-btn)').forEach(btn => {
+        document.querySelectorAll('.diff-btn').forEach(btn => {
             btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
         });
     } else if (id === 'gameScreen') {
@@ -221,34 +229,62 @@ function backToMenu() {
     mpRole = null;
     mpWaitingBoardInit = false;
     mpSentBoardInit = false;
+    mpReadyRestartSent = false;
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
-    showScreen('modeScreen');
+    showScreen('startScreen');
+    refreshRoomList();
 }
 
+// 联机模式下的准备重启状态
+let mpReadyRestartSent = false;
+
 function restartGame() {
-    // 联机模式：只有房主才能重新开始
-    if (MP.isMultiplayer() && mpRole !== 'host') return;
+    // 联机模式：双方都要确认才能重新开始
+    if (MP.isMultiplayer()) {
+        if (mpReadyRestartSent) return; // 已经点过了，忽略重复点击
+        mpReadyRestartSent = true;
+        MP.send({ type: 'ready-restart' });
+        _setRestartBtnWaiting();
+        return;
+    }
     hideGameResult();
-    // 联机模式：通知对方重置
-    if (MP.isMultiplayer()) MP.send({ type: 'restart' });
     initGame();
     setTimeout(() => {
         if (window._panCenter) window._panCenter();
     }, 100);
 }
 
-// ─── 联机 UI 控制函数 ──────────────────────────────────────────
-
-// 进入单人流程
-function enterSinglePlayer() {
-    showScreen('startScreen');
+// 设置重启按钮为等待状态
+function _setRestartBtnWaiting() {
+    const restartBtn = document.getElementById('restartBtn');
+    const restartResultBtn = document.getElementById('restartResultBtn');
+    const waitingText = '等待对方…';
+    if (restartBtn) {
+        restartBtn.textContent = '⏳';
+        restartBtn.disabled = true;
+        restartBtn.title = waitingText;
+    }
+    if (restartResultBtn) {
+        restartResultBtn.textContent = waitingText;
+        restartResultBtn.disabled = true;
+    }
 }
 
-// 进入联机大厅
-function enterMultiplayer() {
-    showScreen('lobbyScreen');
-    refreshRoomList();
+// 重置重启按钮状态
+function _resetRestartBtnState() {
+    mpReadyRestartSent = false;
+    const restartBtn = document.getElementById('restartBtn');
+    const restartResultBtn = document.getElementById('restartResultBtn');
+    if (restartBtn) {
+        restartBtn.textContent = '🔄';
+        restartBtn.disabled = false;
+        restartBtn.title = '';
+    }
+    if (restartResultBtn) {
+        restartResultBtn.textContent = '再来一局';
+        restartResultBtn.disabled = false;
+    }
 }
 
 const SIDES_LABEL = { 3: '3', 4: '4', 5: '5', 6: '6', 8: '84', 34: '43', 36: '63' };
@@ -333,29 +369,6 @@ async function quickJoinRoom(code) {
     await joinRoom();
 }
 
-// 从大厅返回模式选择
-function backToModeSelect() {
-    showScreen('modeScreen');
-}
-
-// 联机大厅：形状/难度选择
-let mpSides = 4;
-let mpDifficulty = 'medium';
-
-function mpSelectSides(s) {
-    mpSides = s;
-    document.querySelectorAll('.mp-side-btn').forEach(b => {
-        b.classList.toggle('selected', parseInt(b.dataset.sides) === s);
-    });
-}
-
-function mpSelectDifficulty(diff) {
-    mpDifficulty = diff;
-    document.querySelectorAll('.mp-diff-btn').forEach(b => {
-        b.classList.toggle('selected', b.dataset.diff === diff);
-    });
-}
-
 // 创建房间
 async function createRoom() {
     document.getElementById('lobbyError').textContent = '';
@@ -371,16 +384,13 @@ async function createRoom() {
         document.getElementById('waitingPartnerLabel').textContent = '等待中...';
         showScreen('waitingScreen');
         MP.onPartnerJoined = () => {
-            sides = mpSides;
-            currentDifficulty = mpDifficulty;
             cellSize = _effectiveCellSize();
             initGame();
             showScreen('gameScreen');
             setTimeout(() => { if (window._panCenter) window._panCenter(); }, 100);
         };
     };
-    const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[mpDifficulty] || [10, 10, 20];
-    MP.createRoom({ sides: mpSides, difficulty: mpDifficulty, rows: preset[0], cols: preset[1], mines: preset[2] });
+    MP.createRoom({ sides, difficulty: currentDifficulty, rows, cols, mines: totalMines });
 }
 
 // 加入房间
@@ -421,7 +431,8 @@ async function joinRoom() {
 function cancelWaiting() {
     MP.disconnect();
     mpRole = null;
-    showScreen('modeScreen');
+    showScreen('startScreen');
+    refreshRoomList();
 }
 
 function showGameResult(won) {
@@ -443,10 +454,34 @@ function hideGameResult() {
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
+// 棋盘形状配置
+// label:   顶点构型符号（Vertex configuration），用于按钮显示
+// name:    学术正式名称（英文）
+// nameCN:  学术正式名称（中文）
+const SHAPE_OPTIONS = [
+    { sides: 3,  label: '3',  name: 'Triangular tiling',         nameCN: '三角形镶嵌' },
+    { sides: 4,  label: '4',  name: 'Square tiling',             nameCN: '正方形镶嵌' },
+    { sides: 5,  label: '5',  name: 'Cairo pentagonal tiling',   nameCN: '开罗五边形镶嵌' },
+    { sides: 6,  label: '6',  name: 'Hexagonal tiling',          nameCN: '六边形镶嵌' },
+    { sides: 34, label: '43', name: 'Snub square tiling',        nameCN: '扭棱正方形镶嵌' },
+    { sides: 36, label: '63', name: 'Trihexagonal tiling',       nameCN: '三六镶嵌' },
+    { sides: 8,  label: '84', name: 'Truncated square tiling',   nameCN: '截角正方形镶嵌' },
+];
+
+// 渲染棋盘形状按钮（复用于单人和联机模式）
+function renderShapeButtons(containerId, clickHandler, selectedSides, extraClass = '') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = SHAPE_OPTIONS.map(opt =>
+        `<button class="side-btn ${extraClass} ${opt.sides === selectedSides ? 'selected' : ''}" ` +
+        `data-sides="${opt.sides}" onclick="${clickHandler}(${opt.sides})">${opt.label}</button>`
+    ).join('');
+}
+
 // 边数按钮选择
 function selectSides(s) {
     sides = SUPPORTED_SIDES.has(s) ? s : 4;
-    document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
+    document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
     cellSize = _effectiveCellSize();
@@ -510,26 +545,17 @@ function previewBoardSize() {
     _updatePreviewInfo();
 }
 
+function _calcTotalCells(s, r, c) {
+    if (s === 8)  return r * c + (r - 1) * (c - 1);
+    if (s === 34) return r * c * 6;
+    if (s === 36) return r * c * 2 + r + c;
+    if (s === 5)  return r * c * 4;
+    return r * c;
+}
+
 function _updatePreviewInfo() {
-    // 计算总格子数
-    let totalCells;
-    if (sides === 8) {
-        totalCells = rows * cols + (rows - 1) * (cols - 1);
-    } else if (sides === 34) {
-        // 扭棱正方形：使用缓存计算精确格子数
-        totalCells = rows * cols * 6; // 每基本域 2 正方形 + 4 三角形
-    } else if (sides === 36) {
-        // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
-        totalCells = rows * cols + rows * cols + rows + cols;
-    } else if (sides === 5) {
-        // Cairo 五边形：每组4个，共 rows*cols 组
-        totalCells = rows * cols * 4;
-    } else {
-        totalCells = rows * cols;
-    }
-
+    const totalCells = _calcTotalCells(sides, rows, cols);
     const ratioNum = totalCells > 0 ? (totalMines / totalCells * 100) : 0;
-
     document.getElementById('cellCount').textContent = totalCells;
     const ratioEl = document.getElementById('mineRatio');
     ratioEl.textContent = ratioNum.toFixed(1) + '%';
@@ -539,7 +565,7 @@ function _updatePreviewInfo() {
 function initGame() {
     // 联机模式下 sides 已由房间配置设定，不从 DOM 读取覆盖
     if (!mpRole) {
-        const selectedBtn = document.querySelector('.side-btn.selected:not(.mp-side-btn)');
+        const selectedBtn = document.querySelector('.side-btn.selected');
         sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
         if (!SUPPORTED_SIDES.has(sides)) sides = 4;
     }
@@ -620,19 +646,21 @@ function initGame() {
                 }
             }
             if (type === 'restart') {
-                // 房主重新开始，guest 同步重置棋盘
+                // 双方都确认重新开始，同步重置棋盘
                 hideGameResult();
                 initGame();
                 if (window._panCenter) setTimeout(() => window._panCenter(), 100);
             }
+            if (type === 'partner-ready-restart') {
+                // 对方已点击重新开始，显示提示
+                showToast('对方已准备，等待你确认…');
+            }
         };
         MP.onPartnerLeft = () => {
-            if (!gameOver) {
-                gameOver = true;
-                clearInterval(timerInterval);
-                showToast('对方已退出，游戏结束');
-                backToMenu();
-            }
+            gameOver = true;
+            clearInterval(timerInterval);
+            showToast('对方已退出，游戏结束');
+            backToMenu();
         };
         MP.onPartnerRejoined = () => {
             const el = document.getElementById('mpStatus');
@@ -662,12 +690,8 @@ function initGame() {
 }
 
 function _updateRestartBtnVisibility() {
-    const isGuest = MP.isMultiplayer() && mpRole === 'guest';
-    const restartBtn = document.getElementById('restartBtn');
-    const restartResultBtn = document.getElementById('restartResultBtn');
-    // 用 visibility 而非 display，保持 header 三栏布局不变（状态组居中）
-    if (restartBtn) restartBtn.style.visibility = isGuest ? 'hidden' : '';
-    if (restartResultBtn) restartResultBtn.style.display = isGuest ? 'none' : '';
+    // 联机模式下双方都需要确认才能重新开始，所以都显示按钮
+    _resetRestartBtnState();
 }
 
 function _buildBoard() {
@@ -1443,10 +1467,13 @@ if (window.HapticsAdapter) {
     HapticsAdapter.init();
 }
 
+// 渲染棋盘形状按钮（复用组件）
+renderShapeButtons('shapeButtons', 'selectSides', 4);
+
 // 初始化时应用默认设置
 selectSides(4);
 selectDifficulty('medium');
-_updatePreviewInfo();
 
-// 初始显示模式选择屏
-showScreen('modeScreen');
+// 初始显示统一大厅，并拉取房间列表
+showScreen('startScreen');
+refreshRoomList();
