@@ -185,7 +185,7 @@ wss.on('connection', (ws) => {
                         mines:            fwdRoom.config.mines,
                         winner,
                         duration_seconds,
-                        loser_revealed:   msg.revealedCount ?? 0,
+                        loser_revealed:   Number.isInteger(msg.revealedCount) ? Math.max(0, msg.revealedCount) : 0,
                         first_click_at:   fwdRoom.firstClickAt,
                     });
                     fwdRoom.matchSaved = true;
