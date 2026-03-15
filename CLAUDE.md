@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-多边形扫雷游戏，纯前端实现（原生 HTML/CSS/JavaScript），使用 SVG 绘制棋盘。项目强调几何正确性、移动端可用性和大棋盘性能。
+多边形扫雷游戏，纯前端实现（原生 HTML/CSS/JavaScript），使用 Canvas 绘制棋盘。项目强调几何正确性、移动端可用性和大棋盘性能。
 
 ## 技术栈
 
@@ -23,7 +23,7 @@ shared/         # 共享模块（haptics、platform、storage）
 mobile/         # Capacitor 移动端包装
 ```
 
-加载顺序必须保持：`geometry.js -> renderer.js -> multiplayer.js -> game.js`。
+加载顺序必须保持：`shared/platform.js -> shared/storage.js -> shared/haptics.js -> geometry.js -> renderer.js -> multiplayer.js -> game.js`。
 
 ## 当前功能（重要）
 
@@ -127,6 +127,7 @@ mobile/         # Capacitor 移动端包装
 - 游戏进行中（`firstClick === false`）设置项会锁定，避免改盘面导致状态不一致。
 - 平移手势通过 `_isPanning` 抑制点击/长按；改交互时要回归测试鼠标、触摸、触控板三条路径。
 - `revealCell()` / 开雷逻辑中对有效格判断优先使用 `board` 映射，而不是单纯 `rows/cols` 范围。
+- `_effectiveCellSize()` 确保 sides=3/4/5/6 主格子面积等于 40²=1600px²；修改格子尺寸时不要绕过此函数。
 
 ## 本地运行与验证
 
