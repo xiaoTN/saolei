@@ -8,19 +8,22 @@
 
 - HTML5 + CSS3（无框架、无构建工具）
 - JavaScript (ES6+)（全局脚本，按顺序加载）
-- SVG（棋盘渲染与交互事件）
+- Canvas（棋盘渲染，原 SVG 已替换）
 
 ## 文件结构
 
 ```text
-index.html     # 页面结构与脚本加载顺序（含缓存版本号）
-style.css      # UI 样式、布局、视口区域样式
-geometry.js    # 多边形几何/邻居/画布尺寸/有效格枚举
-renderer.js    # SVG 创建、格子状态更新、事件委托
-game.js        # 游戏状态、规则、计时器、设置、平移与交互
+index.html      # 页面结构与脚本加载顺序（含缓存版本号）
+style.css       # UI 样式、布局、视口区域样式
+geometry.js     # 多边形几何/邻居/画布尺寸/有效格枚举
+renderer.js     # Canvas 渲染、格子状态更新、事件委托
+multiplayer.js  # 前端联机模块（WebSocket 通信）
+game.js         # 游戏状态、规则、计时器、设置、平移与交互
+shared/         # 共享模块（haptics、platform、storage）
+mobile/         # Capacitor 移动端包装
 ```
 
-加载顺序必须保持：`geometry.js -> renderer.js -> game.js`。
+加载顺序必须保持：`geometry.js -> renderer.js -> multiplayer.js -> game.js`。
 
 ## 当前功能（重要）
 
@@ -176,6 +179,7 @@ node --check game.js renderer.js geometry.js
 ```bash
 npm test           # 运行所有单元测试
 npm run test:unit  # 同上
+npm run test:e2e   # 运行 E2E 测试（需先 npx playwright install）
 ```
 
 测试文件位于 `tests/unit/`：
