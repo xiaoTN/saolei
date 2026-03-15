@@ -483,6 +483,27 @@ function hideGameResult() {
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
+// 棋盘形状配置（边数 -> 显示名称）
+const SHAPE_OPTIONS = [
+    { sides: 3, label: '3' },
+    { sides: 4, label: '4' },
+    { sides: 5, label: '5' },
+    { sides: 6, label: '6' },
+    { sides: 34, label: '43' },
+    { sides: 36, label: '63' },
+    { sides: 8, label: '84' },
+];
+
+// 渲染棋盘形状按钮（复用于单人和联机模式）
+function renderShapeButtons(containerId, clickHandler, selectedSides, extraClass = '') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = SHAPE_OPTIONS.map(opt =>
+        `<button class="side-btn ${extraClass} ${opt.sides === selectedSides ? 'selected' : ''}" ` +
+        `data-sides="${opt.sides}" onclick="${clickHandler}(${opt.sides})">${opt.label}</button>`
+    ).join('');
+}
+
 // 边数按钮选择
 function selectSides(s) {
     sides = SUPPORTED_SIDES.has(s) ? s : 4;
@@ -1480,6 +1501,10 @@ let _isPanning = false;
 if (window.HapticsAdapter) {
     HapticsAdapter.init();
 }
+
+// 渲染棋盘形状按钮（复用组件）
+renderShapeButtons('shapeButtons', 'selectSides', 4);
+renderShapeButtons('mpShapeButtons', 'mpSelectSides', 4, 'mp-side-btn');
 
 // 初始化时应用默认设置
 selectSides(4);
