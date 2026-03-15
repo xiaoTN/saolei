@@ -446,15 +446,17 @@ function hideGameResult() {
 
 // ─── 初始化 ────────────────────────────────────────────────────
 
-// 棋盘形状配置（边数 -> 显示名称）
+// 棋盘形状配置
+// label: 顶点构型符号（Vertex configuration），用于按钮显示
+// name:  学术正式名称
 const SHAPE_OPTIONS = [
-    { sides: 3, label: '3' },
-    { sides: 4, label: '4' },
-    { sides: 5, label: '5' },
-    { sides: 6, label: '6' },
-    { sides: 34, label: '43' },
-    { sides: 36, label: '63' },
-    { sides: 8, label: '84' },
+    { sides: 3,  label: '3',  name: 'Triangular tiling' },
+    { sides: 4,  label: '4',  name: 'Square tiling' },
+    { sides: 5,  label: '5',  name: 'Cairo pentagonal tiling' },
+    { sides: 6,  label: '6',  name: 'Hexagonal tiling' },
+    { sides: 34, label: '43', name: 'Snub square tiling' },
+    { sides: 36, label: '63', name: 'Trihexagonal tiling' },
+    { sides: 8,  label: '84', name: 'Truncated square tiling' },
 ];
 
 // 渲染棋盘形状按钮（复用于单人和联机模式）
