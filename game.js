@@ -164,7 +164,7 @@ const DIFFICULTY_PRESETS = {
 // ─── 界面切换 ──────────────────────────────────────────────────
 
 // 新增屏幕（display 控制）
-const NEW_SCREENS = ['modeScreen', 'lobbyScreen', 'waitingScreen'];
+const NEW_SCREENS = ['waitingScreen'];
 
 function showScreen(id) {
     // 处理新增屏幕（display 切换）
@@ -180,10 +180,10 @@ function showScreen(id) {
         gameEl.classList.remove('active');
         gameStarted = false;
         _setSettingsLocked(false);
-        document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
+        document.querySelectorAll('.side-btn').forEach(btn => {
             btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
         });
-        document.querySelectorAll('.diff-btn:not(.mp-diff-btn)').forEach(btn => {
+        document.querySelectorAll('.diff-btn').forEach(btn => {
             btn.classList.toggle('selected', btn.dataset.diff === currentDifficulty);
         });
     } else if (id === 'gameScreen') {
@@ -224,7 +224,8 @@ function backToMenu() {
     mpReadyRestartSent = false;
     mpMyRevealCount = 0;
     mpPartnerRevealCount = 0;
-    showScreen('modeScreen');
+    showScreen('startScreen');
+    refreshRoomList();
 }
 
 // 联机模式下的准备重启状态
@@ -276,19 +277,6 @@ function _resetRestartBtnState() {
         restartResultBtn.textContent = '再来一局';
         restartResultBtn.disabled = false;
     }
-}
-
-// ─── 联机 UI 控制函数 ──────────────────────────────────────────
-
-// 进入单人流程
-function enterSinglePlayer() {
-    showScreen('startScreen');
-}
-
-// 进入联机大厅
-function enterMultiplayer() {
-    showScreen('lobbyScreen');
-    refreshRoomList();
 }
 
 const SIDES_LABEL = { 3: '三角形', 4: '正方形', 5: '五边形', 6: '六边形', 8: '八边形', 34: '扭棱正方', 36: '三六混合' };
@@ -373,65 +361,6 @@ async function quickJoinRoom(code) {
     await joinRoom();
 }
 
-// 从大厅返回模式选择
-function backToModeSelect() {
-    showScreen('modeScreen');
-}
-
-// 联机大厅：形状/难度选择
-let mpSides = 4;
-let mpDifficulty = 'medium';
-let mpRows = 10, mpCols = 10, mpMines = 20;
-
-function mpSelectSides(s) {
-    mpSides = s;
-    document.querySelectorAll('.mp-side-btn').forEach(b => {
-        b.classList.toggle('selected', parseInt(b.dataset.sides) === s);
-    });
-    if (mpDifficulty !== 'custom') _mpApplyDifficultyPreset(mpDifficulty);
-    else _updatePreviewInfo('mp-');
-}
-
-function mpSelectDifficulty(diff) {
-    mpDifficulty = diff;
-    document.querySelectorAll('.mp-diff-btn').forEach(b => {
-        b.classList.toggle('selected', b.dataset.diff === diff);
-    });
-    const customEl = document.getElementById('mp-customSettings');
-    if (diff === 'custom') {
-        customEl.style.display = 'flex';
-        _updatePreviewInfo('mp-');
-    } else {
-        customEl.style.display = 'none';
-        _mpApplyDifficultyPreset(diff);
-    }
-}
-
-function _mpApplyDifficultyPreset(diff) {
-    const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[diff];
-    if (!preset) return;
-    const [r, c, m] = preset;
-    mpRows = r; mpCols = c; mpMines = m;
-    document.getElementById('mp-rows').value = r;
-    document.getElementById('mp-rows-val').textContent = r;
-    document.getElementById('mp-cols').value = c;
-    document.getElementById('mp-cols-val').textContent = c;
-    document.getElementById('mp-mines').value = m;
-    document.getElementById('mp-mines-val').textContent = m;
-    _updatePreviewInfo('mp-');
-}
-
-function mpPreviewBoardSize() {
-    mpRows = parseInt(document.getElementById('mp-rows').value);
-    mpCols = parseInt(document.getElementById('mp-cols').value);
-    _updatePreviewInfo('mp-');
-}
-
-function mpPreviewMineCount() {
-    mpMines = parseInt(document.getElementById('mp-mines').value);
-    _updatePreviewInfo('mp-');
-}
-
 // 创建房间
 async function createRoom() {
     document.getElementById('lobbyError').textContent = '';
@@ -447,19 +376,13 @@ async function createRoom() {
         document.getElementById('waitingPartnerLabel').textContent = '等待中...';
         showScreen('waitingScreen');
         MP.onPartnerJoined = () => {
-            sides = mpSides;
-            currentDifficulty = mpDifficulty;
             cellSize = _effectiveCellSize();
             initGame();
             showScreen('gameScreen');
             setTimeout(() => { if (window._panCenter) window._panCenter(); }, 100);
         };
     };
-    const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[mpDifficulty] || [10, 10, 20];
-    const r = mpDifficulty === 'custom' ? mpRows  : preset[0];
-    const c = mpDifficulty === 'custom' ? mpCols  : preset[1];
-    const m = mpDifficulty === 'custom' ? mpMines : preset[2];
-    MP.createRoom({ sides: mpSides, difficulty: mpDifficulty, rows: r, cols: c, mines: m });
+    MP.createRoom({ sides, difficulty: currentDifficulty, rows, cols, mines: totalMines });
 }
 
 // 加入房间
@@ -500,7 +423,8 @@ async function joinRoom() {
 function cancelWaiting() {
     MP.disconnect();
     mpRole = null;
-    showScreen('modeScreen');
+    showScreen('startScreen');
+    refreshRoomList();
 }
 
 function showGameResult(won) {
@@ -546,7 +470,7 @@ function renderShapeButtons(containerId, clickHandler, selectedSides, extraClass
 // 边数按钮选择
 function selectSides(s) {
     sides = SUPPORTED_SIDES.has(s) ? s : 4;
-    document.querySelectorAll('.side-btn:not(.mp-side-btn)').forEach(btn => {
+    document.querySelectorAll('.side-btn').forEach(btn => {
         btn.classList.toggle('selected', parseInt(btn.dataset.sides) === sides);
     });
     cellSize = _effectiveCellSize();
@@ -618,18 +542,11 @@ function _calcTotalCells(s, r, c) {
     return r * c;
 }
 
-function _updatePreviewInfo(prefix) {
-    const p = prefix || '';
-    const s = p ? mpSides : sides;
-    const r = p ? mpRows  : rows;
-    const c = p ? mpCols  : cols;
-    const m = p ? mpMines : totalMines;
-
-    const totalCells = _calcTotalCells(s, r, c);
-    const ratioNum = totalCells > 0 ? (m / totalCells * 100) : 0;
-
-    document.getElementById(p + 'cellCount').textContent = totalCells;
-    const ratioEl = document.getElementById(p + 'mineRatio');
+function _updatePreviewInfo() {
+    const totalCells = _calcTotalCells(sides, rows, cols);
+    const ratioNum = totalCells > 0 ? (totalMines / totalCells * 100) : 0;
+    document.getElementById('cellCount').textContent = totalCells;
+    const ratioEl = document.getElementById('mineRatio');
     ratioEl.textContent = ratioNum.toFixed(1) + '%';
     ratioEl.className = ratioNum < 15 ? 'easy' : ratioNum < 25 ? 'medium' : 'hard';
 }
@@ -637,7 +554,7 @@ function _updatePreviewInfo(prefix) {
 function initGame() {
     // 联机模式下 sides 已由房间配置设定，不从 DOM 读取覆盖
     if (!mpRole) {
-        const selectedBtn = document.querySelector('.side-btn.selected:not(.mp-side-btn)');
+        const selectedBtn = document.querySelector('.side-btn.selected');
         sides = selectedBtn ? parseInt(selectedBtn.dataset.sides) : 4;
         if (!SUPPORTED_SIDES.has(sides)) sides = 4;
     }
@@ -1541,15 +1458,11 @@ if (window.HapticsAdapter) {
 
 // 渲染棋盘形状按钮（复用组件）
 renderShapeButtons('shapeButtons', 'selectSides', 4);
-renderShapeButtons('mpShapeButtons', 'mpSelectSides', 4, 'mp-side-btn');
 
 // 初始化时应用默认设置
 selectSides(4);
 selectDifficulty('medium');
-_updatePreviewInfo();
 
-// 联机大厅初始化预览
-_mpApplyDifficultyPreset('medium');
-
-// 初始显示模式选择屏
-showScreen('modeScreen');
+// 初始显示统一大厅，并拉取房间列表
+showScreen('startScreen');
+refreshRoomList();
