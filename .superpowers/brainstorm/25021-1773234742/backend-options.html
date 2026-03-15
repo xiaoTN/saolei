@@ -1,0 +1,42 @@
+<h2>联机后端方案对比</h2>
+<p class="subtitle">先做局域网/本机，后续扩展公网。哪种架构最适合？</p>
+
+<div class="options">
+
+  <div class="option" data-choice="A" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>BroadcastChannel（同设备多标签页）+ 后续换 WebSocket</h3>
+      <p>Phase 1：用浏览器原生 <code>BroadcastChannel</code> API，同一浏览器不同标签页之间实时同步状态，零依赖、零服务器。Phase 2：抽象出一个 <code>Transport</code> 接口，把 BroadcastChannel 换成 WebSocket，上层代码不变。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>Phase 1 完全无服务器，纯静态</li><li>接口抽象后切换成本低</li><li>开发调试极简单</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>Phase 1 只支持同设备，局域网两台机器不行</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="B" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>本地 Node.js WebSocket 服务器（局域网可用）</h3>
+      <p>写一个极简 Node.js 脚本（约 80 行），跑在本地做信令和状态转发。局域网内任意设备扫码/输房间号可加入。后续部署到公网服务器只需改连接地址。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>局域网内真实双设备可用</li><li>和最终公网方案架构完全一致</li><li>房间码逻辑在服务端，更可靠</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要先 <code>node server.js</code> 启动服务</li><li>比纯静态稍复杂一点</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="C" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>SharedArrayBuffer / SharedWorker（最底层共享内存）</h3>
+      <p>通过浏览器 SharedWorker 或 SharedArrayBuffer 共享游戏状态，同设备标签页零延迟同步，不需要任何消息传递。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>理论上延迟最低</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要 COOP/COEP HTTP 头，纯静态部署麻烦</li><li>和公网 WebSocket 方案差异很大，迁移成本高</li><li>不推荐</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

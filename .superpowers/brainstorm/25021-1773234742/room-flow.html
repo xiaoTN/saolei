@@ -1,0 +1,80 @@
+<h2>双人联机：房间流程长什么样？</h2>
+<p class="subtitle">点击「双人联机」后，怎么让两人进入同一局游戏？</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:12px;color:#eee;line-height:2">
+      <div style="text-align:center;font-weight:bold;margin-bottom:10px;color:#aef">👥 双人联机</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:#2a2a4c;border:1px solid #7c7cff;border-radius:8px;padding:10px;text-align:center">
+          <div style="color:#7c7cff;font-size:11px;margin-bottom:4px">创建房间</div>
+          <div style="font-size:22px;letter-spacing:6px;font-weight:bold;color:#fff">A3F7</div>
+          <div style="color:#888;font-size:10px">把这个码发给朋友</div>
+        </div>
+        <div style="text-align:center;color:#555">— 或 —</div>
+        <div style="background:#2a2a4c;border:1px solid #555;border-radius:8px;padding:10px">
+          <div style="color:#888;font-size:11px;margin-bottom:6px">加入房间</div>
+          <div style="display:flex;gap:6px">
+            <div style="flex:1;background:#1a1a2e;border:1px solid #444;border-radius:6px;padding:6px;text-align:center;color:#888;letter-spacing:4px">____</div>
+            <div style="background:#5555aa;border-radius:6px;padding:6px 10px;color:#aef">加入</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;color:#555;font-size:10px;text-align:center">⏳ 等待对方加入...</div>
+    </div>
+    <div class="card-body">
+      <h3>方案 A：房间码（4位字母数字）</h3>
+      <p>创建者自动生成4位房间码，发给朋友。朋友输入码加入。简单直接，无需账号。适合同场景（同一wifi）或远程。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:12px;color:#eee;line-height:2">
+      <div style="text-align:center;font-weight:bold;margin-bottom:10px;color:#aef">👥 双人联机</div>
+      <div style="background:#2a2a4c;border:1px solid #7c7cff;border-radius:8px;padding:12px">
+        <div style="color:#7c7cff;font-size:11px;margin-bottom:6px">分享链接</div>
+        <div style="background:#1a1a2e;border:1px solid #444;border-radius:6px;padding:8px;font-size:10px;color:#888;word-break:break-all">
+          https://saolei.app/join?r=x9k2m
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <div style="flex:1;background:#5555aa;border-radius:6px;padding:6px;text-align:center;font-size:11px;color:#aef">📋 复制链接</div>
+          <div style="flex:1;background:#5555aa;border-radius:6px;padding:6px;text-align:center;font-size:11px;color:#aef">📲 分享</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;color:#555;font-size:10px;text-align:center">⏳ 等待对方通过链接加入...</div>
+    </div>
+    <div class="card-body">
+      <h3>方案 B：分享链接</h3>
+      <p>创建房间后生成一条链接，发给朋友点击即可直接加入，无需输入码。更流畅，但需要托管域名或本地服务支持。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:12px;color:#eee;line-height:2">
+      <div style="text-align:center;font-weight:bold;margin-bottom:10px;color:#aef">👥 双人联机（本机测试）</div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;background:#2a2a4c;border:2px solid #7c7cff;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px">🧑</div>
+          <div style="font-size:11px;color:#7c7cff;margin-top:4px">玩家 1</div>
+          <div style="font-size:10px;color:#888">（房主）</div>
+          <div style="margin-top:8px;background:#5555aa;border-radius:6px;padding:4px;font-size:11px;color:#aef">等待中...</div>
+        </div>
+        <div style="flex:1;background:#2a2a4c;border:2px dashed #555;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:20px;color:#555">❓</div>
+          <div style="font-size:11px;color:#555;margin-top:4px">玩家 2</div>
+          <div style="font-size:10px;color:#555">（未加入）</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#2a2a4c;border:1px solid #444;border-radius:8px;padding:8px">
+        <div style="color:#888;font-size:11px;margin-bottom:4px">在同设备第二个窗口访问：</div>
+        <div style="color:#aef;font-size:10px">http://localhost:8000/?join=A3F7</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 C：同设备双窗口（开发/演示模式）</h3>
+      <p>先做最简版：两人在同一台设备上各开一个浏览器窗口，通过 URL 参数或本地 WebSocket 连接。适合本地演示和开发调试。</p>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,89 @@
+<h2>游戏入口：单人 / 双人选择放在哪里？</h2>
+<p class="subtitle">现在的入口是：棋盘形状 → 难度 → 开始游戏。双人模式选择应该怎么融入？</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:13px;color:#eee;line-height:1.8">
+      <div style="text-align:center;font-size:20px;margin-bottom:12px">💣 多边形扫雷</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px">
+        <div style="background:#3a3a5c;border:2px solid #7c7cff;border-radius:8px;padding:10px 20px;color:#aef;font-weight:bold">👤 单人游戏</div>
+        <div style="background:#3a3a5c;border:2px solid #555;border-radius:8px;padding:10px 20px;color:#888">👥 双人联机</div>
+      </div>
+      <div style="border:1px solid #444;border-radius:6px;padding:10px">
+        <div style="color:#888;font-size:11px;margin-bottom:6px">棋盘形状</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">三角形</span>
+          <span style="background:#7c7cff;padding:3px 8px;border-radius:4px;font-size:11px">正方形 ✓</span>
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">六边形</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;border:1px solid #444;border-radius:6px;padding:10px">
+        <div style="color:#888;font-size:11px;margin-bottom:6px">难度</div>
+        <div style="display:flex;gap:4px">
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">简单</span>
+          <span style="background:#7c7cff;padding:3px 8px;border-radius:4px;font-size:11px">中等 ✓</span>
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">困难</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#7c7cff;border-radius:8px;padding:8px;text-align:center;font-weight:bold">▶ 开始游戏</div>
+    </div>
+    <div class="card-body">
+      <h3>方案 A：顶部模式切换标签</h3>
+      <p>入口最顶部加「单人 / 双人」两个标签。选单人时显示现有设置；选双人时显示联机设置（房间码等）。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:13px;color:#eee;line-height:1.8">
+      <div style="text-align:center;font-size:20px;margin-bottom:12px">💣 多边形扫雷</div>
+      <div style="border:1px solid #444;border-radius:6px;padding:10px;margin-bottom:8px">
+        <div style="color:#888;font-size:11px;margin-bottom:6px">棋盘形状</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">三角形</span>
+          <span style="background:#7c7cff;padding:3px 8px;border-radius:4px;font-size:11px">正方形 ✓</span>
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">六边形</span>
+        </div>
+      </div>
+      <div style="border:1px solid #444;border-radius:6px;padding:10px;margin-bottom:10px">
+        <div style="color:#888;font-size:11px;margin-bottom:6px">难度</div>
+        <div style="display:flex;gap:4px">
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">简单</span>
+          <span style="background:#7c7cff;padding:3px 8px;border-radius:4px;font-size:11px">中等 ✓</span>
+          <span style="background:#5555aa;padding:3px 8px;border-radius:4px;font-size:11px">困难</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;background:#7c7cff;border-radius:8px;padding:8px;text-align:center;font-weight:bold">▶ 单人开始</div>
+        <div style="flex:1;background:#3a3a5c;border:1px solid #7c7cff;border-radius:8px;padding:8px;text-align:center;color:#aef">👥 双人联机</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 B：底部双按钮</h3>
+      <p>保留现有设置不变，底部把「开始游戏」拆成两个按钮：「单人开始」和「双人联机」。双人按钮点击后进入房间流程。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:13px;color:#eee;line-height:1.8">
+      <div style="text-align:center;font-size:20px;margin-bottom:12px">💣 多边形扫雷</div>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <div style="background:#2a2a4c;border:2px solid #7c7cff;border-radius:12px;padding:16px 24px;text-align:center;width:120px">
+          <div style="font-size:28px">👤</div>
+          <div style="font-weight:bold;color:#aef;margin-top:6px">单人游戏</div>
+          <div style="color:#888;font-size:11px;margin-top:4px">选棋盘 · 选难度 · 开始</div>
+        </div>
+        <div style="background:#2a2a4c;border:2px solid #555;border-radius:12px;padding:16px 24px;text-align:center;width:120px">
+          <div style="font-size:28px">👥</div>
+          <div style="font-weight:bold;color:#888;margin-top:6px">双人联机</div>
+          <div style="color:#666;font-size:11px;margin-top:4px">合作 · 创建/加入房间</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 C：主界面先选模式（两张大卡片）</h3>
+      <p>进入游戏先看到两张大卡片，点「单人游戏」才进现有设置流程；点「双人联机」进入联机流程（棋盘设置在双人房间里配置）。层次最清晰，但多了一步点击。</p>
+    </div>
+  </div>
+
+</div>

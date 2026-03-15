@@ -381,12 +381,15 @@ function backToModeSelect() {
 // 联机大厅：形状/难度选择
 let mpSides = 4;
 let mpDifficulty = 'medium';
+let mpRows = 10, mpCols = 10, mpMines = 20;
 
 function mpSelectSides(s) {
     mpSides = s;
     document.querySelectorAll('.mp-side-btn').forEach(b => {
         b.classList.toggle('selected', parseInt(b.dataset.sides) === s);
     });
+    if (mpDifficulty !== 'custom') _mpApplyDifficultyPreset(mpDifficulty);
+    else _updatePreviewInfo('mp-');
 }
 
 function mpSelectDifficulty(diff) {
@@ -394,6 +397,39 @@ function mpSelectDifficulty(diff) {
     document.querySelectorAll('.mp-diff-btn').forEach(b => {
         b.classList.toggle('selected', b.dataset.diff === diff);
     });
+    const customEl = document.getElementById('mp-customSettings');
+    if (diff === 'custom') {
+        customEl.style.display = 'flex';
+        _updatePreviewInfo('mp-');
+    } else {
+        customEl.style.display = 'none';
+        _mpApplyDifficultyPreset(diff);
+    }
+}
+
+function _mpApplyDifficultyPreset(diff) {
+    const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[diff];
+    if (!preset) return;
+    const [r, c, m] = preset;
+    mpRows = r; mpCols = c; mpMines = m;
+    document.getElementById('mp-rows').value = r;
+    document.getElementById('mp-rows-val').textContent = r;
+    document.getElementById('mp-cols').value = c;
+    document.getElementById('mp-cols-val').textContent = c;
+    document.getElementById('mp-mines').value = m;
+    document.getElementById('mp-mines-val').textContent = m;
+    _updatePreviewInfo('mp-');
+}
+
+function mpPreviewBoardSize() {
+    mpRows = parseInt(document.getElementById('mp-rows').value);
+    mpCols = parseInt(document.getElementById('mp-cols').value);
+    _updatePreviewInfo('mp-');
+}
+
+function mpPreviewMineCount() {
+    mpMines = parseInt(document.getElementById('mp-mines').value);
+    _updatePreviewInfo('mp-');
 }
 
 // 创建房间
@@ -420,7 +456,10 @@ async function createRoom() {
         };
     };
     const preset = (DIFFICULTY_PRESETS[mpSides] || DIFFICULTY_PRESETS[4])[mpDifficulty] || [10, 10, 20];
-    MP.createRoom({ sides: mpSides, difficulty: mpDifficulty, rows: preset[0], cols: preset[1], mines: preset[2] });
+    const r = mpDifficulty === 'custom' ? mpRows  : preset[0];
+    const c = mpDifficulty === 'custom' ? mpCols  : preset[1];
+    const m = mpDifficulty === 'custom' ? mpMines : preset[2];
+    MP.createRoom({ sides: mpSides, difficulty: mpDifficulty, rows: r, cols: c, mines: m });
 }
 
 // 加入房间
@@ -571,28 +610,26 @@ function previewBoardSize() {
     _updatePreviewInfo();
 }
 
-function _updatePreviewInfo() {
-    // 计算总格子数
-    let totalCells;
-    if (sides === 8) {
-        totalCells = rows * cols + (rows - 1) * (cols - 1);
-    } else if (sides === 34) {
-        // 扭棱正方形：使用缓存计算精确格子数
-        totalCells = rows * cols * 6; // 每基本域 2 正方形 + 4 三角形
-    } else if (sides === 36) {
-        // 三六混合：六边形 rows*cols + 三角形 rows*cols + rows + cols
-        totalCells = rows * cols + rows * cols + rows + cols;
-    } else if (sides === 5) {
-        // Cairo 五边形：每组4个，共 rows*cols 组
-        totalCells = rows * cols * 4;
-    } else {
-        totalCells = rows * cols;
-    }
+function _calcTotalCells(s, r, c) {
+    if (s === 8)  return r * c + (r - 1) * (c - 1);
+    if (s === 34) return r * c * 6;
+    if (s === 36) return r * c * 2 + r + c;
+    if (s === 5)  return r * c * 4;
+    return r * c;
+}
 
-    const ratioNum = totalCells > 0 ? (totalMines / totalCells * 100) : 0;
+function _updatePreviewInfo(prefix) {
+    const p = prefix || '';
+    const s = p ? mpSides : sides;
+    const r = p ? mpRows  : rows;
+    const c = p ? mpCols  : cols;
+    const m = p ? mpMines : totalMines;
 
-    document.getElementById('cellCount').textContent = totalCells;
-    const ratioEl = document.getElementById('mineRatio');
+    const totalCells = _calcTotalCells(s, r, c);
+    const ratioNum = totalCells > 0 ? (m / totalCells * 100) : 0;
+
+    document.getElementById(p + 'cellCount').textContent = totalCells;
+    const ratioEl = document.getElementById(p + 'mineRatio');
     ratioEl.textContent = ratioNum.toFixed(1) + '%';
     ratioEl.className = ratioNum < 15 ? 'easy' : ratioNum < 25 ? 'medium' : 'hard';
 }
@@ -1510,6 +1547,9 @@ renderShapeButtons('mpShapeButtons', 'mpSelectSides', 4, 'mp-side-btn');
 selectSides(4);
 selectDifficulty('medium');
 _updatePreviewInfo();
+
+// 联机大厅初始化预览
+_mpApplyDifficultyPreset('medium');
 
 // 初始显示模式选择屏
 showScreen('modeScreen');

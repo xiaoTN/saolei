@@ -105,8 +105,33 @@
                         <button class="diff-btn mp-diff-btn selected" data-diff="medium" onclick="mpSelectDifficulty('medium')">中等</button>
                         <button class="diff-btn mp-diff-btn" data-diff="hard" onclick="mpSelectDifficulty('hard')">困难</button>
                         <button class="diff-btn mp-diff-btn" data-diff="hell" onclick="mpSelectDifficulty('hell')">地狱</button>
+                        <button class="diff-btn mp-diff-btn" data-diff="custom" onclick="mpSelectDifficulty('custom')">自定义</button>
                     </div>
                 </div>
+
+                <div class="custom-settings" id="mp-customSettings" style="display:none">
+                    <div class="setting-item slider-item">
+                        <label>行数: <span id="mp-rows-val">10</span></label>
+                        <input type="range" id="mp-rows" value="10" min="3" max="100"
+                               oninput="document.getElementById('mp-rows-val').textContent=this.value; mpPreviewBoardSize()">
+                    </div>
+                    <div class="setting-item slider-item">
+                        <label>列数: <span id="mp-cols-val">10</span></label>
+                        <input type="range" id="mp-cols" value="10" min="3" max="100"
+                               oninput="document.getElementById('mp-cols-val').textContent=this.value; mpPreviewBoardSize()">
+                    </div>
+                    <div class="setting-item slider-item">
+                        <label>雷数: <span id="mp-mines-val">20</span></label>
+                        <input type="range" id="mp-mines" value="20" min="1" max="2500"
+                               oninput="document.getElementById('mp-mines-val').textContent=this.value; mpPreviewMineCount()">
+                    </div>
+                </div>
+
+                <div class="preview-info" id="mp-previewInfo">
+                    <span class="preview-item">📐 <span id="mp-cellCount">64</span> 格</span>
+                    <span class="preview-item">💣 <span id="mp-mineRatio">—</span></span>
+                </div>
+
                 <button class="start-btn" onclick="createRoom()">
                     <span>创建房间</span><span class="start-icon">▶</span>
                 </button>
