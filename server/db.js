@@ -67,7 +67,9 @@ function saveMatch(match) {
 function getLeaderboard({ board_type, difficulty, limit = 20 } = {}) {
     const db = _getDb();
     const stmt = db.prepare(`
-        SELECT * FROM matches
+        SELECT id, room_code, board_type, difficulty, rows, cols, mines,
+               winner, duration_seconds, loser_revealed, first_click_at, played_at
+        FROM matches
         WHERE board_type = @board_type AND difficulty = @difficulty
         ORDER BY duration_seconds ASC
         LIMIT @limit

@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 
 // 每个 test 用独立内存数据库，避免状态共享
 function createDb() {
+    // 清除模块缓存，确保每个测试拿到全新的模块实例
+    delete require.cache[require.resolve('../../server/db')];
     const Database = require('better-sqlite3');
     const sqlite = new Database(':memory:');
     const db = require('../../server/db');
