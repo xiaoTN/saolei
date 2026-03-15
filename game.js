@@ -832,6 +832,7 @@ function handleClick(row, col, opts = {}) {
                         vibrate([100, 50, 100]);
                         if (MP.isMultiplayer() && !opts.fromRemote) {
                             MP.send({ type: 'reveal', key: nKey });
+                            MP.send({ type: 'game-over', result: 'lose', revealedCount: mpMyRevealCount });
                         }
                         showGameResult(false);
                         return;
@@ -908,6 +909,7 @@ function handleRightClick(e, row, col, opts = {}) {
                         clearInterval(timerInterval);
                         if (MP.isMultiplayer() && !opts.fromRemote) {
                             MP.send({ type: 'reveal', key: nKey });
+                            MP.send({ type: 'game-over', result: 'lose', revealedCount: mpMyRevealCount });
                         }
                         showGameResult(false);
                         return;
@@ -943,7 +945,10 @@ function handleRightClick(e, row, col, opts = {}) {
         gameOver = true;
         clearInterval(timerInterval);
         vibrate([100, 50, 100]);
-        if (MP.isMultiplayer() && !opts.fromRemote) MP.send({ type: 'reveal', key });
+        if (MP.isMultiplayer() && !opts.fromRemote) {
+            MP.send({ type: 'reveal', key });
+            MP.send({ type: 'game-over', result: 'lose', revealedCount: mpMyRevealCount });
+        }
         showGameResult(false);
         return;
     }
