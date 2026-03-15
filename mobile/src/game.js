@@ -251,7 +251,7 @@ function enterMultiplayer() {
     refreshRoomList();
 }
 
-const SIDES_LABEL = { 3: '三角形', 4: '正方形', 5: '五边形', 6: '六边形', 8: '八边形', 34: '扭棱正方', 36: '三六混合' };
+const SIDES_LABEL = { 3: '3', 4: '4', 5: '5', 6: '6', 8: '84', 34: '43', 36: '63' };
 const DIFF_LABEL = { easy: '简单', medium: '中等', hard: '困难', hell: '地狱' };
 
 function formatDateTime(ts) {
