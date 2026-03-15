@@ -9,29 +9,9 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 模式选择屏 -->
-    <div class="mode-screen" id="modeScreen">
-        <div class="mode-container">
-            <h1 class="game-title">💣 多边形扫雷</h1>
-            <div class="mode-cards">
-                <div class="mode-card" onclick="enterSinglePlayer()">
-                    <div class="mode-icon">👤</div>
-                    <div class="mode-name">单人游戏</div>
-                    <div class="mode-desc">选棋盘 · 选难度 · 开始</div>
-                </div>
-                <div class="mode-card" onclick="enterMultiplayer()">
-                    <div class="mode-icon">👥</div>
-                    <div class="mode-name">双人联机</div>
-                    <div class="mode-desc">合作模式 · 共同扫雷</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- 入口界面 -->
     <div class="start-screen" id="startScreen">
         <div class="start-container">
-            <button class="back-btn lobby-back" onclick="backToModeSelect()">← 返回</button>
             <h1 class="game-title">💣 多边形扫雷</h1>
 
             <div class="settings-card">
@@ -75,47 +55,20 @@
                 </div>
             </div>
 
-            <button class="start-btn" onclick="startGame()">
-                <span>开始游戏</span>
-                <span class="start-icon">▶</span>
-            </button>
-
-            <div class="tips">左键标记地雷 🚩 · 右键/长按打开格子</div>
-        </div>
-    </div>
-
-    <!-- 联机大厅屏 -->
-    <div class="lobby-screen" id="lobbyScreen" style="display:none">
-        <div class="lobby-container">
-            <div class="lobby-header">
-                <button class="back-btn" onclick="backToModeSelect()">← 返回</button>
-                <h2>👥 双人联机</h2>
-            </div>
-
-            <div class="lobby-section">
-                <div class="lobby-section-title">创建房间</div>
-                <div class="setting-section">
-                    <div class="section-label">棋盘形状</div>
-                    <div class="shape-row" id="mpShapeButtons"></div>
-                </div>
-                <div class="setting-section">
-                    <div class="section-label">难度选择</div>
-                    <div class="difficulty-row">
-                        <button class="diff-btn mp-diff-btn" data-diff="easy" onclick="mpSelectDifficulty('easy')">简单</button>
-                        <button class="diff-btn mp-diff-btn selected" data-diff="medium" onclick="mpSelectDifficulty('medium')">中等</button>
-                        <button class="diff-btn mp-diff-btn" data-diff="hard" onclick="mpSelectDifficulty('hard')">困难</button>
-                        <button class="diff-btn mp-diff-btn" data-diff="hell" onclick="mpSelectDifficulty('hell')">地狱</button>
-                    </div>
-                </div>
-                <button class="start-btn" onclick="createRoom()">
-                    <span>创建房间</span><span class="start-icon">▶</span>
+            <div class="action-row">
+                <button class="start-btn" onclick="startGame()">
+                    <span>开始游戏</span><span class="start-icon">▶</span>
+                </button>
+                <button class="start-btn create-room-btn" onclick="createRoom()">
+                    <span>创建房间</span>
                 </button>
             </div>
+
+            <div class="tips">左键标记地雷 🚩 · 右键/长按打开格子</div>
 
             <div class="lobby-divider">— 或加入已有房间 —</div>
 
             <div class="lobby-section">
-                <div class="lobby-section-title">加入房间</div>
                 <div class="join-row">
                     <input class="room-code-input" id="joinCodeInput" type="text"
                            maxlength="4" placeholder="输入房间码" oninput="this.value=this.value.toUpperCase()">
