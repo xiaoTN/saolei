@@ -84,19 +84,27 @@ const DEFAULT_CELL_SIZE = 40; // 基准格子大小（sides=4 正方形边长 / 
 
 // 各模式的有效 cellSize，确保主要多边形面积与 sides=4 正方形面积（40²=1600px²）一致：
 //   sides=4:  正方形面积 = cellSize²                          → cellSize = 40
+//   sides=3:  等边三角形面积 = (√3/4)·cellSize²              → cellSize = √(6400/√3) ≈ 60.78
+//   sides=5:  Cairo 五边形面积 = |Tx×Ty|/4·cellSize²         → cellSize ≈ 31.03
 //   sides=34: 正方形面积 = (cellSize/2)²                     → cellSize = 80
 //   sides=8:  正八边形面积 = 2(1+√2)·(cellSize/(1+√2))²      → cellSize = √(800(1+√2)) ≈ 43.95
 //   sides=6:  正六边形面积 = (3√3/2)·(cellSize/2)²           → cellSize = 2√(3200/(3√3)) ≈ 49.63
 //   sides=36: rectification 六边形面积 = 9√3·cellSize²/8     → cellSize = √(12800/(9√3)) ≈ 28.64
-//   其他模式（3,5）：不缩放
 function _effectiveCellSize() {
     const S = DEFAULT_CELL_SIZE; // 基准边长 40
     const TARGET_AREA = S * S;   // 目标面积 1600
+    if (sides === 3)  return Math.sqrt(TARGET_AREA * 4 / Math.sqrt(3));
+    if (sides === 5) {
+        const cairoCoeff = Math.abs(
+            _CAIRO_TX[0] * _CAIRO_TY[1] - _CAIRO_TX[1] * _CAIRO_TY[0]
+        ) / 4;
+        return Math.sqrt(TARGET_AREA / cairoCoeff);
+    }
     if (sides === 34) return S * 2;
     if (sides === 8)  return Math.sqrt(TARGET_AREA * (1 + Math.SQRT2) / 2);
     if (sides === 6)  return 2 * Math.sqrt(TARGET_AREA * 2 / (3 * Math.sqrt(3)));
     if (sides === 36) return Math.sqrt(TARGET_AREA * 8 / (9 * Math.sqrt(3)));
-    return S;
+    return S; // sides=4
 }
 const MIN_SCALE = 1;          // 最小缩放比例
 const MAX_SCALE = 2;          // 最大缩放比例
