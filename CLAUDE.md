@@ -169,6 +169,24 @@ node --check game.js renderer.js geometry.js
 - 拖拽/双指滑动平移、默认居中是否正常
 - 踩雷后雷格 hover 颜色不变
 
+## 单元测试
+
+项目使用 Node.js 内置测试运行器：
+
+```bash
+npm test           # 运行所有单元测试
+npm run test:unit  # 同上
+```
+
+测试文件位于 `tests/unit/`：
+- `geometry.test.js` — 几何计算测试
+- `renderer.test.js` — 渲染逻辑测试
+- `snub-square.test.js` — 扭棱正方形专项测试
+
+**规则：**
+- 新增功能（新棋盘类型、新游戏机制）必须添加对应单元测试
+- 小改动（修改颜色、字体大小等）无需单元测试，由 Claude 判断
+
 ## 测试用例（重要）
 
 所有执行过的测试用例必须记录在 `TEST-CASES.md` 文件中。
