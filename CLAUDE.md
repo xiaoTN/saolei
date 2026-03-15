@@ -19,7 +19,9 @@ geometry.js     # 多边形几何/邻居/画布尺寸/有效格枚举
 renderer.js     # Canvas 渲染、格子状态更新、事件委托
 multiplayer.js  # 前端联机模块（WebSocket 通信）
 game.js         # 游戏状态、规则、计时器、设置、平移与交互
-shared/         # 共享模块（haptics、platform、storage）
+shared/         # 共享模块（haptics、platform、storage、mp-conflict）
+                #   mp-conflict.js：联机竞点冲突检测（纯逻辑，无 DOM 依赖）
+server/         # 联机服务器相关文件
 mobile/         # Capacitor 移动端包装
 ```
 
@@ -178,15 +180,21 @@ node --check game.js renderer.js geometry.js
 项目使用 Node.js 内置测试运行器：
 
 ```bash
-npm test           # 运行所有单元测试
-npm run test:unit  # 同上
-npm run test:e2e   # 运行 E2E 测试（需先 npx playwright install）
+npm test              # 运行所有单元测试
+npm run test:unit     # 同上
+npm run test:e2e      # 游戏 E2E 测试（需先 npx playwright install）
+npm run test:mp-e2e   # 联机多人 E2E 测试（需先 npx playwright install）
 ```
 
-测试文件位于 `tests/unit/`：
+单元测试文件位于 `tests/unit/`：
 - `geometry.test.js` — 几何计算测试
 - `renderer.test.js` — 渲染逻辑测试
 - `snub-square.test.js` — 扭棱正方形专项测试
+- `mp-click-conflict.test.js` — 联机竞点冲突检测单元测试
+
+E2E 测试文件位于 `tests/e2e/`：
+- `game.test.js` — 游戏核心 E2E 测试
+- `mp-click-conflict.test.js` — 联机竞点冲突 E2E 测试（4 个场景）
 
 **规则：**
 - 新增功能（新棋盘类型、新游戏机制）必须添加对应单元测试
