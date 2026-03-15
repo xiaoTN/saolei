@@ -45,6 +45,11 @@ body {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 20px 20px 40px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+.start-container::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
 }
 
 .game-title {
